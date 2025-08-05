@@ -4,8 +4,8 @@ import tempfile
 import os
 from newspaper_eval_merged import json_to_excel_stacked
 
-st.set_page_config(page_title="신문평가 자동 병합기", layout="centered")
-st.title("📰 신문평가 JSON → 엑셀 자동 병합기")
+st.set_page_config(page_title="신문평가 자동 수합기", layout="centered")
+st.title("📰 신문평가 JSON → 엑셀 자동 수합기")
 
 st.markdown("""
 #### 사용법 안내
@@ -16,7 +16,7 @@ st.markdown("""
 
 # --- 1. ZIP 파일 업로드
 uploaded_zip = st.file_uploader("1. 평가 데이터 ZIP 업로드 (폴더를 압축)", type=["zip"])
-week_num = st.number_input("2. 병합할 주차 (예: 1)", min_value=1, step=1, value=1)
+week_num = st.number_input("2. 수합할 주차 (예: 1)", min_value=1, step=1, value=1)
 storage_folder = st.selectbox("3. storage 폴더명 선택", ["storage0", "storage1"])
 
 run_btn = st.button("실행 (엑셀 변환)")
