@@ -1,0 +1,7 @@
+streamlit
+openpyxl
+pandas
+# (추가로 필요한 패키지 있으면 아래처럼)
+# numpy
+# gspread
+# pydrive2
