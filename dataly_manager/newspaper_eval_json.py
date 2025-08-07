@@ -31,8 +31,8 @@ def strip_prefix(fname):
 def merge_newspaper_eval(week_num=1, files_per_week=102):
     # 기본 경로
     base_dir = get_base_dir()
-    dir_a = os.path.join(base_dir, "A팀")
-    dir_b = os.path.join(base_dir, "B팀")
+    dir_a = os.path.join(base_dir, "A")
+    dir_b = os.path.join(base_dir, "B")
     merge_base = os.path.join(base_dir, "merged")
     output_dir = os.path.join(merge_base, f"{week_num}주차")
     ensure_folder(output_dir)
