@@ -98,12 +98,17 @@ with tabs[3]:  # 신문평가 병합
                 f.write(uploaded_zip.read())
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
-            # 실제 신문폴더(A, B 포함 폴더) 찾아 base_dir 지정
-            candidate_dirs = [os.path.join(temp_dir, d) for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
+            st.write("압축 해제 후 임시폴더 목록:", os.listdir(temp_dir))
+            candidate_dirs = [os.path.join(temp_dir, d) for d in os.listdir(temp_dir) if
+                              os.path.isdir(os.path.join(temp_dir, d))]
             if not candidate_dirs:
                 st.error("압축 내부 폴더를 찾을 수 없습니다. ZIP 폴더 구조를 확인하세요.")
             else:
-                base_dir = candidate_dirs[0]  # 첫번째 폴더 사용
+                base_dir = candidate_dirs[0]
+                st.write("선택된 base_dir:", base_dir)
+                st.write("base_dir 폴더 목록:", os.listdir(base_dir))
+                # 아래 merge 함수 호출
+
                 with st.spinner("병합 중입니다..."):
                     msg, output_dir, zip_path = merge_newspaper_eval(
                         week_num=int(merge_week_num),
