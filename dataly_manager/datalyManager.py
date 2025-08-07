@@ -42,10 +42,10 @@ with tabs[0]:  # 홈
 with tabs[1]:  # 신문평가 수합
     st.header("📰 신문평가 JSON → 엑셀 자동 수합기")
     st.info("아래 순서대로 업로드 및 실행을 진행하세요.")
-    uploaded_zip = st.file_uploader("1. 평가 데이터 ZIP 업로드 (폴더를 압축)", type=["zip"])
-    week_num = st.number_input("2. 수합할 주차 (예: 1)", min_value=1, step=1, value=1)
-    storage_folder = st.selectbox("3. storage 폴더명 선택", ["storage0", "storage1"])
-    run_btn = st.button("실행 (엑셀 변환)", key="run_newspaper")
+    uploaded_zip = st.file_uploader("1. 평가 데이터 ZIP 업로드 (폴더를 압축)", type=["zip"], key="file_upload_zip_sum")
+    sum_week_num = st.number_input("2. 수합할 주차 (예: 1)", min_value=1, step=1, value=1, key="sum_week_num")
+    storage_folder = st.selectbox("3. storage 폴더명 선택", ["storage0", "storage1"], key="sum_storage_folder")
+    run_btn = st.button("실행 (엑셀 변환)", key="run_newspaper_sum")
 
     if uploaded_zip and run_btn:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -60,7 +60,7 @@ with tabs[1]:  # 신문평가 수합
             else:
                 root_path = os.path.join(temp_dir, folder_list[0])
                 st.info("엑셀 변환을 시작합니다. (수초~수십초 소요)")
-                json_to_excel_stacked(root_path, week_num, storage_folder)
+                json_to_excel_stacked(root_path, sum_week_num, storage_folder)
                 excel_path = os.path.join(root_path, "summary_eval_all.xlsx")
                 if os.path.exists(excel_path):
                     with open(excel_path, "rb") as f:
@@ -87,13 +87,13 @@ with tabs[3]:  # 신문평가 병합
     (폴더 구조/경로는 코드에 명시된 대로 /Users/data.ly/Desktop/말뭉치배포/신문 내 A팀/B팀/merged가 필요합니다.)
     """)
 
-    week_num = st.number_input("병합할 주차 (예: 1)", min_value=1, step=1, value=1)
-    files_per_week = st.number_input("병합할 파일 수 (보통 102)", min_value=1, step=1, value=102)
+    merge_week_num = st.number_input("병합할 주차 (예: 1)", min_value=1, step=1, value=1, key="merge_week_num")
+    files_per_week = st.number_input("병합할 파일 수 (보통 102)", min_value=1, step=1, value=102, key="merge_files_per_week")
     run_merge_btn = st.button("신문평가 병합 실행", key="run_newspaper_merge")
 
     if run_merge_btn:
         with st.spinner("병합 중입니다... (경로/입력값 확인)"):
-            msg = merge_newspaper_eval(week_num=int(week_num), files_per_week=int(files_per_week))
+            msg = merge_newspaper_eval(week_num=int(merge_week_num), files_per_week=int(files_per_week))
         st.success(f"병합 결과: {msg}")
         # 필요시 병합된 폴더 링크 안내 등 추가
 
