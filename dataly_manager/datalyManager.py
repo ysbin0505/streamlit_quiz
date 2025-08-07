@@ -81,44 +81,44 @@ with tabs[2]:  # 대화평가 병합 (예시, 추후 구현)
     st.info("이 기능은 곧 추가됩니다. 원하시는 기능이 있다면 문의해 주세요.")
 
 with tabs[3]:  # 신문평가 병합
-    st.header("📦 신문평가 ZIP 자동 병합")
+    st.header("📦 신문평가 JSON 병합")
     st.info("""
-    A/B 폴더가 포함된 신문평가 전체 폴더를 zip으로 업로드하세요.
-    (예: '신문.zip' 내부에 A/B 폴더가 반드시 포함되어야 합니다.)
+    ZIP 내 'A/A팀', 'B/B팀' 폴더와 JSON 파일이 존재해야 하며, 병합 결과는 자동으로 압축파일로 다운로드할 수 있습니다.
     """)
 
-    uploaded_merge_zip = st.file_uploader("1. 신문평가 전체 ZIP 업로드 (A/B 폴더 포함)", type=["zip"], key="merge_file_upload_zip")
-    merge_week_num = st.number_input("2. 병합할 주차 (예: 1)", min_value=1, step=1, value=1, key="merge_week_num")
-    files_per_week = st.number_input("3. 병합할 파일 수 (보통 102)", min_value=1, step=1, value=102, key="merge_files_per_week")
-    run_merge_btn = st.button("신문평가 병합 실행 (ZIP 자동 인식)", key="run_newspaper_merge")
+    uploaded_zip = st.file_uploader("병합할 신문 원본 ZIP 업로드 (A/B팀 포함 폴더)", type=["zip"], key="merge_zip_upload")
+    merge_week_num = st.number_input("병합할 주차 (예: 1)", min_value=1, step=1, value=1, key="merge_week_num")
+    files_per_week = st.number_input("병합할 파일 수 (보통 102)", min_value=1, step=1, value=102, key="merge_files_per_week")
+    run_merge_btn = st.button("신문평가 병합 실행", key="run_newspaper_merge")
 
-    if uploaded_merge_zip and run_merge_btn:
+    if uploaded_zip and run_merge_btn:
         with tempfile.TemporaryDirectory() as temp_dir:
-            # zip 파일 저장 및 해제
-            zip_path = os.path.join(temp_dir, "newspaper.zip")
+            zip_path = os.path.join(temp_dir, "src.zip")
             with open(zip_path, "wb") as f:
-                f.write(uploaded_merge_zip.read())
+                f.write(uploaded_zip.read())
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
-            # A/B 폴더 자동 탐색 (최상위/하위 모두 지원)
-            found = False
-            for root, dirs, files in os.walk(temp_dir):
-                if "A팀" in dirs and "B팀" in dirs:
-                    base_dir = root
-                    found = True
-                    break
-            if not found:
-                st.error("ZIP 내부에 A팀, B팀 폴더가 없습니다. 폴더 구조를 확인하세요.")
+            # 실제 신문폴더(A, B 포함 폴더) 찾아 base_dir 지정
+            candidate_dirs = [os.path.join(temp_dir, d) for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
+            if not candidate_dirs:
+                st.error("압축 내부 폴더를 찾을 수 없습니다. ZIP 폴더 구조를 확인하세요.")
             else:
-                with st.spinner(f"병합 중... (A팀/B팀 위치: {base_dir})"):
-                    msg = merge_newspaper_eval(
+                base_dir = candidate_dirs[0]  # 첫번째 폴더 사용
+                with st.spinner("병합 중입니다..."):
+                    msg, output_dir, zip_path = merge_newspaper_eval(
                         week_num=int(merge_week_num),
                         files_per_week=int(files_per_week),
-                        base_dir=base_dir  # zip 내부 경로!
+                        base_dir=base_dir
                     )
                 st.success(f"병합 결과: {msg}")
-                # 병합된 결과 폴더 다운로드 기능 추가도 가능
-
+                # zip 다운로드 버튼
+                with open(zip_path, "rb") as f:
+                    st.download_button(
+                        label=f"{merge_week_num}주차 병합 JSON ZIP 다운로드",
+                        data=f,
+                        file_name=f"merged_{merge_week_num}주차.zip",
+                        mime="application/zip"
+                    )
     else:
         st.info("ZIP 파일, 주차, 파일 수 입력 후 실행을 눌러주세요.")
 
