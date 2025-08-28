@@ -26,6 +26,45 @@ REF_MAP = {
 }
 TYPE_TAGS = {"table_ref", "row_ref", "col_ref", "cell_ref"}
 
+# --- 추가: 설명문장 안전 추출 헬퍼들 ---
+def _iter_exp_items(ex_obj):
+    """ex_obj.get('exp_sentence')가 list/dict/str 어떤 형태든 리스트로 정규화"""
+    raw = ex_obj.get("exp_sentence", [])
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        return [raw]
+    if isinstance(raw, str):
+        return [{"설명문장": [raw]}]
+    return []
+
+def _pick_sentence(exp_item) -> str:
+    """
+    exp_item에서 설명문장 1개를 뽑아 반환.
+    - '설명문장' / '설명 문장' / 비슷한 변형(공백 제거 후 비교) 우선
+    - 그래도 없으면 dict 값들 중 list[str] 또는 str을 첫 번째로 사용
+    """
+    if isinstance(exp_item, str):
+        return exp_item.strip()
+
+    if isinstance(exp_item, dict):
+        # 1) 우선 '설명문장' / '설명 문장' 같이 보이는 키를 탐색(공백 제거 후 비교)
+        for k, v in exp_item.items():
+            kn = str(k).replace(" ", "")
+            if kn in ("설명문장", "설명문장들", "설명"):
+                if isinstance(v, list) and v:
+                    return str(v[0]).strip()
+                return str(v).strip() if v is not None else ""
+
+        # 2) fallback: 값들 중 list[str] 또는 str을 사용
+        for v in exp_item.values():
+            if isinstance(v, list) and v and isinstance(v[0], str):
+                return v[0].strip()
+            if isinstance(v, str):
+                return v.strip()
+
+    return ""  # 못 찾으면 빈 문자열
+
 
 def extract_mdfcn_values(obj, sep: str = "\n") -> str:
     """mdfcn_infos에서 value만 추출(중복 제거, 순서 유지) 후 sep로 결합"""
@@ -112,16 +151,8 @@ def table_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
 
         for ex in doc.get("EX", []) or []:
             ref_type = ex.get("reference", {}).get("reference_type", "")
-            exp_list = ex.get("exp_sentence", []) or []
-            for exp in exp_list:
-                # 설명 문장: ["문장", ...] 형태 대비
-                sentence = ""
-                try:
-                    sent_list = exp.get("설명 문장", [])
-                    sentence = sent_list[0] if sent_list else ""
-                except Exception:
-                    sentence = ""
-
+            for exp_item in _iter_exp_items(ex):
+                sentence = _pick_sentence(exp_item)  # ← 키 변형 안전 처리
                 rows.append({
                     "id": doc_id,
                     "worker_id_cnst": worker,
@@ -129,7 +160,7 @@ def table_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
                     "설명 문장": sentence,
                     "metadata": json.dumps(metadata, ensure_ascii=False, indent=2),
                     "mdfcn_infos": mdfcn_text,
-                    "url": extract_url(metadata),  # 하이퍼링크용
+                    "url": extract_url(metadata),
                 })
                 group_counts[doc_id] += 1
 
