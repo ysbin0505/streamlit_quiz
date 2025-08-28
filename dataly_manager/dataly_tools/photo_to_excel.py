@@ -1,30 +1,22 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
+#dataly_tools/photo_to_excel.py
 """
-JSON -> Excel 변환기 (문서 단위 병합 + URL 하이퍼링크)
-- 입력: 단일 JSON 파일 또는 폴더(하위 모든 *.json 재귀 탐색)
-- 열: id / worker_id_cnst / Medium_category / 유형 / 설명 문장 / metadata / mdfcn_memo(검수자 수정 이력)
+사진(이미지) JSON -> Excel 변환기
+- 입력: dict(JSON 파싱 결과)
+- 출력: bytes(XLSX), datalyManager에서 st.download_button으로 바로 다운로드
 - 같은 document.id 묶음에서 [id, worker_id_cnst, Medium_category, metadata, mdfcn_memo] 세로 병합
-- metadata: JSON 스타일 멀티라인(plain 텍스트). 셀 자체에 하이퍼링크(파란색, 밑줄 없음)
-- mdfcn_memo: 문자열 JSON 파싱 후 "작업 목록 1, 2, 3…" 재번호
+- metadata: 멀티라인 텍스트 + 같은 id 첫 행에만 URL 하이퍼링크(파란색, 밑줄 없음)
 """
 
 import json
 import math
-import re
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-from openpyxl.styles import Font
+from typing import Any, Dict, Iterable, List, Tuple
+from io import BytesIO
+
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-# ===== 경로 하드코딩 =====
-INPUT_PATH = Path('/Users/dataly/Desktop/사진 변환 1차(250827)/project_146.json')   # 폴더 또는 단일 JSON 파일
-OUTPUT_XLSX = Path("output.xlsx")
-# =======================
-
+# 표시 순서(메타 키)
 META_ORDER = [
     "note", "image", "copyright", "term_id", "Major_category",
     "title", "url", "Medium_category", "domain", "media_id",
@@ -38,26 +30,16 @@ THIN_BORDER = Border(
 HEADER_FILL = PatternFill(start_color="EEECE1", end_color="EEECE1", fill_type="solid")
 LINK_BLUE = "0563C1"
 
-# ---------- 파일 유틸 ----------
-def iter_json_files(path: Path) -> Iterable[Path]:
-    if path.is_file() and path.suffix.lower() == ".json":
-        yield path
-    elif path.is_dir():
-        yield from path.rglob("*.json")
-
-def load_json(path: Path) -> Optional[Dict[str, Any]]:
-    for enc in ("utf-8", "utf-8-sig"):
-        try:
-            return json.loads(path.read_text(encoding=enc))
-        except Exception:
-            pass
-    print(f"❌ JSON 로드 실패: {path}")
-    return None
-
-# ---------- 파싱 ----------
+# [타입] 문장 형태 파싱용 ([Type] 내용)
+import re
 TYPE_BRACKET_RE = re.compile(r"^\s*\[(.+?)\]\s*(.*)$")
 
+
 def extract_sentences(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """
+    EX.exp_sentence 내부를 탐색해 ([Type] sentence) 또는 그냥 sentence를
+    (type, sentence) 튜플 리스트로 반환
+    """
     out: List[Tuple[str, str]] = []
     for ex in doc.get("EX", []):
         for item in ex.get("exp_sentence", []) or []:
@@ -76,6 +58,7 @@ def extract_sentences(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
                         out.append(("", text))
     return out
 
+
 def _clean_url(u: str) -> str:
     if not u:
         return ""
@@ -84,8 +67,11 @@ def _clean_url(u: str) -> str:
         u = u[1:-1].strip()
     return u
 
+
 def format_metadata_and_url(meta: Dict[str, Any]) -> Tuple[str, str]:
-    """메타데이터 멀티라인 문자열과 url만 분리 반환"""
+    """
+    metadata를 멀티라인 문자열로 정리하고, url만 분리해서 반환
+    """
     url_only = _clean_url(meta.get("url", ""))
     lines = ['metadata : {']
     for k in META_ORDER:
@@ -96,7 +82,13 @@ def format_metadata_and_url(meta: Dict[str, Any]) -> Tuple[str, str]:
     lines.append("}")
     return "\n".join(lines), url_only
 
+
 def extract_mdfcn_memo(mdfcn_infos):
+    """
+    mdfcn_infos[*].mdfcn_memo 가 JSON 문자열이면 value만 추출해
+    "작업 목록 1 : ..." 형태로 번호 매겨 반환.
+    항목 간에 빈 줄 한 줄 추가.
+    """
     if not mdfcn_infos:
         return ""
     out, idx = [], 1
@@ -117,11 +109,13 @@ def extract_mdfcn_memo(mdfcn_infos):
             if val:
                 out.append(f"작업 목록 {idx} : {val}")
                 idx += 1
-    # ✅ 항목 사이에 빈 줄 추가
     return "\n\n".join(out)
 
 
 def to_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    JSON(dict) -> 행 리스트
+    """
     rows: List[Dict[str, Any]] = []
     docs = data.get("document", [])
     if not isinstance(docs, list):
@@ -145,12 +139,12 @@ def to_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "유형": typ,
                 "설명 문장": sent,
                 "metadata": md_text,
-                "meta_url": md_url,  # 하이퍼링크용
+                "meta_url": md_url,  # 하이퍼링크용(엑셀 열에는 포함 안 함)
                 "mdfcn_memo(검수자 수정 이력)": memo_text,
             })
     return rows
 
-# ---------- 엑셀 ----------
+
 def estimate_wrapped_lines(text: str, col_chars: int) -> int:
     if not text:
         return 1
@@ -160,7 +154,11 @@ def estimate_wrapped_lines(text: str, col_chars: int) -> int:
         total += max(1, math.ceil(len(para) / (width * 1.08)))
     return max(1, total)
 
-def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
+
+def _write_excel_to_bytes(all_rows: List[Dict[str, Any]]) -> bytes:
+    """
+    행 리스트 -> Excel bytes
+    """
     wb = Workbook()
     ws = wb.active
     ws.title = "result"
@@ -171,16 +169,19 @@ def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
     ]
     ws.append(headers)
 
+    # 헤더 스타일
     for c in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=c)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = THIN_BORDER
         cell.fill = HEADER_FILL
 
-    widths = {1:12, 2:16, 3:14, 4:16, 5:80, 6:60, 7:50}
+    # 열 너비(문자폭 기준 추정)
+    widths = {1: 12, 2: 16, 3: 14, 4: 16, 5: 80, 6: 60, 7: 50}
     for col_idx, w in widths.items():
         ws.column_dimensions[get_column_letter(col_idx)].width = w
 
+    # 그룹 시작/개수 추적
     start_row_by_group: Dict[Tuple[str], int] = {}
     count_by_group: Dict[Tuple[str], int] = {}
 
@@ -196,7 +197,9 @@ def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
             row.get("mdfcn_memo(검수자 수정 이력)",""),
         ])
         for c in range(1, len(headers) + 1):
-            ws.cell(row=current_row, column=c).alignment = Alignment(vertical="top", wrap_text=(c in (5,6,7)))
+            ws.cell(row=current_row, column=c).alignment = Alignment(
+                vertical="top", wrap_text=(c in (5, 6, 7))
+            )
             ws.cell(row=current_row, column=c).border = THIN_BORDER
 
         key = (row.get("id",""),)
@@ -206,8 +209,8 @@ def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
         count_by_group[key] += 1
         current_row += 1
 
-    # 병합
-    merge_cols = [1,2,3,6,7]
+    # 병합: 같은 id 블록에서 [id, worker, Medium_category, metadata, mdfcn_memo] 병합
+    merge_cols = [1, 2, 3, 6, 7]
     for key, start in start_row_by_group.items():
         cnt = count_by_group[key]
         if cnt > 1:
@@ -216,13 +219,12 @@ def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
                 ws.merge_cells(start_row=start, start_column=col, end_row=end, end_column=col)
                 ws.cell(row=start, column=col).alignment = Alignment(vertical="top", wrap_text=True)
 
-    # metadata 셀에 하이퍼링크(파란색, 밑줄 없음)
-    # 같은 id 그룹의 "첫 행" 메타 셀만 처리
+    # metadata 하이퍼링크(같은 id 첫 행만)
     first_url_by_id: Dict[str, str] = {}
-    for r, row in enumerate(all_rows, start=2):
-        rid = row.get("id","")
+    for _r, row in enumerate(all_rows, start=2):
+        rid = row.get("id", "")
         if rid and rid not in first_url_by_id:
-            first_url_by_id[rid] = row.get("meta_url","") or ""
+            first_url_by_id[rid] = row.get("meta_url", "") or ""
 
     for key, start in start_row_by_group.items():
         doc_id = key[0]
@@ -230,17 +232,12 @@ def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
         if url and url.startswith(("http://", "https://")):
             c = ws.cell(row=start, column=6)
             c.hyperlink = url
-
-            # 1) 파랑/밑줄 없이 (검정, 밑줄 없음)
-            c.font = Font(color="000000", underline=None)
-
-            # 혹시 Excel이 기본 'Hyperlink' 스타일을 강제로 입히면,
-            # 아래 한 줄 추가 후 테두리/정렬 다시 적용하세요.
-            # c.style = "Normal"
+            # 파란색, 밑줄 없음
+            c.font = Font(color=LINK_BLUE, underline=None)
             c.alignment = Alignment(vertical="top", wrap_text=True)
-            c.border = THIN_BORDER
+            c.border = (THIN_BORDER)
 
-    # 행 높이 자동
+    # 행 높이 대략 조정
     LINE_HEIGHT_PT = 18
     group_starts = set(start_row_by_group.values())
     for r in range(2, current_row):
@@ -249,34 +246,31 @@ def write_excel(all_rows: List[Dict[str, Any]], out_path: Path) -> None:
         if r in group_starts:
             meta_plain = ws.cell(row=r, column=6).value or ""
             memo_plain = ws.cell(row=r, column=7).value or ""
-            need = max(desc_lines,
-                       estimate_wrapped_lines(meta_plain, widths[6]),
-                       estimate_wrapped_lines(memo_plain, widths[7]))
+            need = max(
+                desc_lines,
+                estimate_wrapped_lines(meta_plain, widths[6]),
+                estimate_wrapped_lines(memo_plain, widths[7]),
+            )
         else:
             need = desc_lines
         ws.row_dimensions[r].height = max(1, need) * LINE_HEIGHT_PT
 
-    wb.save(out_path)
-    print(f"✅ 저장 완료: {out_path}")
+    # 틀 고정
+    ws.freeze_panes = "A2"
 
-# ---------- main ----------
-def main():
-    srcs = list(iter_json_files(INPUT_PATH))
-    if not srcs:
-        print("⚠️ 입력 경로에 JSON 파일이 없습니다.")
-        return
+    # 메모리로 저장
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio.getvalue()
 
-    all_rows: List[Dict[str, Any]] = []
-    for jf in srcs:
-        data = load_json(jf)
-        if data:
-            all_rows.extend(to_rows(data))
 
-    if not all_rows:
-        print("⚠️ 변환할 행이 없습니다.")
-        return
-
-    write_excel(all_rows, OUTPUT_XLSX)
-
-if __name__ == "__main__":
-    main()
+def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
+    """
+    datalyManager에서 호출하는 공개 API
+    """
+    rows = to_rows(data)
+    if not rows:
+        # 빈 통합문서라도 반환(다운로드 버튼 활성 목적)
+        return _write_excel_to_bytes([])
+    return _write_excel_to_bytes(rows)
