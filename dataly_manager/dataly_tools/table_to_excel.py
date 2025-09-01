@@ -258,15 +258,16 @@ def table_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
 
 
 def _collect_excel_sentences_by_id(df: pd.DataFrame) -> Dict[str, List[str]]:
-    """
-    엑셀 DataFrame에서 id별 '설명 문장' 리스트를 원본 행 순서대로 수집.
-    - 필수 컬럼: ['id', '설명 문장']
-    """
     if "id" not in df.columns or "설명 문장" not in df.columns:
         raise ValueError("엑셀에 'id'와 '설명 문장' 컬럼이 필요합니다.")
 
-    # 문자열화 + NaN 처리
     tmp = df.copy()
+
+    # ★ 병합 셀 복원
+    if "id" in tmp.columns:
+        tmp["id"] = tmp["id"].ffill()
+
+    # 문자열화 + NaN 처리
     tmp["id"] = tmp["id"].astype(str)
     tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
 
@@ -274,9 +275,9 @@ def _collect_excel_sentences_by_id(df: pd.DataFrame) -> Dict[str, List[str]]:
     for _, row in tmp.iterrows():
         _id = row["id"]
         sent = row["설명 문장"].strip()
-        # 빈 문자열도 '슬롯' 보존 차원에서 그대로 넣음 (필요시 조건부 스킵 가능)
         bucket[_id].append(sent)
     return bucket
+
 
 
 def _iter_exp_slots(ex_obj):
@@ -411,17 +412,18 @@ def _pick_zip_members(zf: zipfile.ZipFile):
     return json_member, excel_member
 
 def _collect_excel_sentences_by_id_type(df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Dict[str, List[str]]]:
-    """
-    엑셀 DataFrame에서 id+유형별 '설명 문장' 리스트를 수집.
-    반환 형태: { id: { ref_type: [sentences...] } }
-    - ref_type은 'table_ref'/'row_ref'/'col_ref'/'cell_ref' 중 하나로 정규화(미매칭 시 원문 라벨 사용)
-    - skip_blank=True면 빈 문자열은 무시(기존 JSON을 덮어쓰지 않음)
-    """
     required = {"id", "유형", "설명 문장"}
     if not required.issubset(set(df.columns)):
         raise ValueError("엑셀에 'id', '유형', '설명 문장' 컬럼이 모두 필요합니다.")
 
     tmp = df.copy()
+
+    # ★ 병합 셀 복원
+    if "id" in tmp.columns:
+        tmp["id"] = tmp["id"].ffill()
+    if "유형" in tmp.columns:
+        tmp["유형"] = tmp["유형"].ffill()
+
     tmp["id"] = tmp["id"].astype(str)
     tmp["유형"] = tmp["유형"].astype(str)
     tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
@@ -431,15 +433,32 @@ def _collect_excel_sentences_by_id_type(df: pd.DataFrame, skip_blank: bool = Tru
         _id = row["id"].strip()
         label = row["유형"].strip()
         sent = row["설명 문장"].strip()
-
         if skip_blank and not sent:
             continue
-
-        # 엑셀 라벨을 JSON의 reference_type으로 정규화
-        ref_type = REF_MAP_INV.get(label, label)  # 엑셀에 이미 'table_ref' 등 원본 키가 들어온 경우도 허용
+        ref_type = _label_to_ref_type(label)   # ▼ 패치2에서 추가되는 정규화 함수 사용
         bucket[_id][ref_type].append(sent)
-
     return bucket
+
+def _label_to_ref_type(label: Any) -> str:
+    s = "" if label is None else str(label).strip()
+    # 1차: 정확 매칭(기존 역매핑)
+    if s in REF_MAP_INV:
+        return REF_MAP_INV[s]
+    # 2차: 공백/밑줄 제거 후 느슨 매칭
+    s2 = s.replace(" ", "").replace("_", "")
+    norm = {
+        "표설명문장": "table_ref", "표설명": "table_ref", "표": "table_ref",
+        "행설명문장": "row_ref",   "행설명": "row_ref",   "행": "row_ref",
+        "열설명문장": "col_ref",   "열설명": "col_ref",   "열": "col_ref",
+        "불연속영역설명문장": "cell_ref", "불연속영역설명": "cell_ref",
+        "불연속영역": "cell_ref", "불연속": "cell_ref"
+    }
+    if s2 in norm:
+        return norm[s2]
+    # 3차: 시작어로 판별(예: '불연속영역 설명...'과 같은 변형)
+    if s2.startswith("불연속"):
+        return "cell_ref"
+    return s  # 마지막 수단: 원문 라벨 그대로(매칭 실패 시 건너뜀)
 
 def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Any]:
     """
