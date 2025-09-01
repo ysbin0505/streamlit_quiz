@@ -26,6 +26,10 @@ REF_MAP = {
 }
 TYPE_TAGS = {"table_ref", "row_ref", "col_ref", "cell_ref"}
 
+# 역매핑: 엑셀 '유형' → JSON reference_type
+REF_MAP_INV = {v: k for k, v in REF_MAP.items()}
+
+
 # --- 추가: 설명문장 안전 추출 헬퍼들 ---
 def _iter_exp_items(ex_obj):
     """ex_obj.get('exp_sentence')가 list/dict/str 어떤 형태든 리스트로 정규화"""
@@ -408,43 +412,118 @@ def _pick_zip_members(zf: zipfile.ZipFile):
 
     return json_member, excel_member
 
-
-def apply_excel_desc_to_json_from_zip(zip_bytes: bytes, sheet_name: Optional[str] = None) -> Tuple[bytes, str]:
+def _collect_excel_sentences_by_id_type(df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Dict[str, List[str]]]:
     """
-    ZIP 바이트(엑셀 + 단일 JSON)를 받아,
-    엑셀의 '설명 문장'을 JSON에 반영한 뒤 (updated_json_bytes, suggested_filename)을 반환.
+    엑셀 DataFrame에서 id+유형별 '설명 문장' 리스트를 수집.
+    반환 형태: { id: { ref_type: [sentences...] } }
+    - ref_type은 'table_ref'/'row_ref'/'col_ref'/'cell_ref' 중 하나로 정규화(미매칭 시 원문 라벨 사용)
+    - skip_blank=True면 빈 문자열은 무시(기존 JSON을 덮어쓰지 않음)
     """
-    if not isinstance(zip_bytes, (bytes, bytearray)):
-        raise TypeError("zip_bytes는 bytes이어야 합니다.")
+    required = {"id", "유형", "설명 문장"}
+    if not required.issubset(set(df.columns)):
+        raise ValueError("엑셀에 'id', '유형', '설명 문장' 컬럼이 모두 필요합니다.")
 
-    with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
-        json_member, excel_member = _pick_zip_members(zf)
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].astype(str)
+    tmp["유형"] = tmp["유형"].astype(str)
+    tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
 
-        if not json_member:
-            raise FileNotFoundError("ZIP 안에 JSON 파일이 없습니다.")
-        if not excel_member:
-            raise FileNotFoundError("ZIP 안에 Excel(.xlsx) 파일이 없습니다.")
+    bucket: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        label = row["유형"].strip()
+        sent = row["설명 문장"].strip()
 
-        # JSON 로드
-        with zf.open(json_member) as jf:
-            json_obj = json.loads(jf.read().decode("utf-8"))
+        if skip_blank and not sent:
+            continue
 
-        # Excel 로드
-        with zf.open(excel_member) as ef:
-            # pandas가 file-like를 받을 수 있음. sheet_name 옵션 전달 가능
-            if sheet_name:
-                df = pd.read_excel(ef, sheet_name=sheet_name)
-            else:
-                df = pd.read_excel(ef)
+        # 엑셀 라벨을 JSON의 reference_type으로 정규화
+        ref_type = REF_MAP_INV.get(label, label)  # 엑셀에 이미 'table_ref' 등 원본 키가 들어온 경우도 허용
+        bucket[_id][ref_type].append(sent)
 
-        # 업데이트
-        updated = apply_excel_desc_to_json(json_obj, df)
+    return bucket
 
-        # 파일명 제안
-        base = Path(json_member).name
-        if base.lower().endswith(".json"):
-            out_name = base[:-5] + "_updated.json"
-        else:
-            out_name = base + "_updated.json"
+def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Any]:
+    """
+    엑셀의 '설명 문장'을 JSON의 exp_sentence에 반영.
+    - '유형' 컬럼이 있으면 id+유형별로 정밀 매핑(권장)
+    - 없으면(구버전 엑셀) id 순서대로 일괄 배분(이전 호환)
+    - skip_blank=True면 엑셀의 빈 문자열은 덮어쓰지 않음
+    """
+    docs = json_obj.get("document", [])
+    if not isinstance(docs, list):
+        return json_obj
 
-        return json.dumps(updated, ensure_ascii=False, indent=2).encode("utf-8"), out_name
+    has_type_col = "유형" in excel_df.columns
+
+    if has_type_col:
+        # 3-1) 유형 정밀 매핑
+        mapping_by_type = _collect_excel_sentences_by_id_type(excel_df, skip_blank=skip_blank)
+
+        for doc in docs:
+            doc_id = str(doc.get("id", ""))
+            type_map = mapping_by_type.get(doc_id, {})
+            if not type_map:
+                continue
+
+            ex_list = doc.get("EX", [])
+            if not isinstance(ex_list, list):
+                continue
+
+            # 유형별 소비 인덱스
+            used_by_type: Dict[str, int] = defaultdict(int)
+
+            for ex in ex_list:
+                ref_type = ""
+                ref = ex.get("reference", {})
+                if isinstance(ref, dict):
+                    ref_type = str(ref.get("reference_type", "")).strip()
+
+                seq = type_map.get(ref_type, [])
+                if not seq:
+                    continue
+
+                used = used_by_type[ref_type]
+
+                for slot in _iter_exp_slots(ex):
+                    if used >= len(seq):
+                        break
+                    s = seq[used]
+                    # skip_blank=True인 경우, 여기선 빈 문자열이 이미 제거되어 있음.
+                    _assign_sentence_to_slot(slot, s)
+                    used += 1
+
+                used_by_type[ref_type] = used
+
+        return json_obj
+
+    else:
+        # 3-2) (호환) '유형'이 없을 때: id 단위 순서 배분
+        mapping = _collect_excel_sentences_by_id(excel_df)
+
+        for doc in docs:
+            doc_id = str(doc.get("id", ""))
+            seq = mapping.get(doc_id, [])
+            if not seq:
+                continue
+
+            used = 0
+            ex_list = doc.get("EX", [])
+            if not isinstance(ex_list, list):
+                continue
+
+            for ex in ex_list:
+                for slot in _iter_exp_slots(ex):
+                    if used >= len(seq):
+                        break
+                    s = seq[used]
+                    if skip_blank and (s is None or str(s).strip() == ""):
+                        used += 1
+                        continue
+                    _assign_sentence_to_slot(slot, s)
+                    used += 1
+
+                if used >= len(seq):
+                    break
+
+        return json_obj

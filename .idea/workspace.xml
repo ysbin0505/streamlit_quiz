@@ -4,9 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="ㅇ">
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="표 - 반영 추가">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -87,7 +86,7 @@
       <workItem from="1754368368669" duration="8192000" />
       <workItem from="1754437689652" duration="6738000" />
       <workItem from="1756281239861" duration="8637000" />
-      <workItem from="1756688562301" duration="1105000" />
+      <workItem from="1756688562301" duration="1569000" />
     </task>
     <task id="LOCAL-00001" summary="ㅇ">
       <option name="closed" value="true" />
@@ -185,7 +184,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756364952565</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="표 - 반영 추가">
+      <option name="closed" value="true" />
+      <created>1756689686387</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1756689686387</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -193,7 +200,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="ㅇ" />
-    <option name="LAST_COMMIT_MESSAGE" value="ㅇ" />
+    <MESSAGE value="표 - 반영 추가" />
+    <option name="LAST_COMMIT_MESSAGE" value="표 - 반영 추가" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$.coverage" NAME="실험 커버리지 결과" MODIFIED="1754528844554" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
