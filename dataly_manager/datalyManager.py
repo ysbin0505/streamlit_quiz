@@ -48,7 +48,7 @@ with tabs[0]:
     - 💬 대화평가 병합: 준비중
     - 📦 신문평가 병합: A/B팀 JSON ZIP 병합
     - 📊 표 변환: 단일 JSON→엑셀
-    - 🖼️ 사진 변환: 단일 JSON→엑셀(이미지용 스키마)
+    - 🖼️ 사진 변환: 단일 JSON→엑셀
     """)
 
 # 신문평가 수합
@@ -157,10 +157,37 @@ with tabs[4]:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
+    st.divider()
+    st.subheader("🔁 엑셀의 ‘설명 문장’ → JSON 반영 (ZIP)")
+    st.caption("ZIP 안에 .xlsx 1개와 project_*.json 1개가 있어야 합니다. 시트명을 비우면 첫 시트를 사용합니다.")
+    apply_zip = st.file_uploader("ZIP 업로드 (Excel + JSON)", type=["zip"], key="zip_apply_desc_tab4")
+    sheet_name = st.text_input("엑셀 시트명(선택)", value="", key="sheet_apply_desc_tab4")
+
+    if st.button("적용 실행", key="btn_apply_desc_tab4"):
+        if not apply_zip:
+            st.error("ZIP 파일을 업로드하세요.")
+        else:
+            from dataly_tools.table_to_excel import apply_excel_desc_to_json_from_zip  # 지연 임포트
+
+            try:
+                zip_bytes = apply_zip.getvalue()
+                sheet_arg = sheet_name.strip() or None
+                updated_bytes, suggested_name = apply_excel_desc_to_json_from_zip(zip_bytes, sheet_arg)
+            except Exception as e:
+                st.error(f"적용 중 오류: {e}")
+            else:
+                st.success("JSON 업데이트 완료!")
+                st.download_button(
+                    label=f"{suggested_name} 다운로드",
+                    data=updated_bytes,
+                    file_name=suggested_name,
+                    mime="application/json"
+                )
+
 # 사진 변환 (JSON→Excel) — photo_to_excel.py 사용
 with tabs[5]:
     st.header("🖼️ 사진 변환 (단일 JSON → Excel)")
-    st.info("project_*.json 1개를 업로드하면 이미지 전용 스키마를 엑셀로 변환합니다.")
+    st.info("project_*.json 1개를 업로드하면 엑셀로 변환합니다.")
     uploaded_json_img = st.file_uploader("JSON 업로드 (project_*.json)", type=["json"], key="json_photo")
     if st.button("엑셀 변환 실행", key="btn_photo"):
         if not uploaded_json_img:

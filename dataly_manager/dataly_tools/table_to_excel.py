@@ -11,7 +11,7 @@
 import json
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
@@ -249,3 +249,202 @@ def table_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
 
     output.seek(0)
     return output.getvalue()
+
+
+# ====== 여기서부터 추가 ======
+import zipfile
+from pathlib import Path
+
+def _collect_excel_sentences_by_id(df: pd.DataFrame) -> Dict[str, List[str]]:
+    """
+    엑셀 DataFrame에서 id별 '설명 문장' 리스트를 원본 행 순서대로 수집.
+    - 필수 컬럼: ['id', '설명 문장']
+    """
+    if "id" not in df.columns or "설명 문장" not in df.columns:
+        raise ValueError("엑셀에 'id'와 '설명 문장' 컬럼이 필요합니다.")
+
+    # 문자열화 + NaN 처리
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].astype(str)
+    tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
+
+    bucket: Dict[str, List[str]] = defaultdict(list)
+    for _, row in tmp.iterrows():
+        _id = row["id"]
+        sent = row["설명 문장"].strip()
+        # 빈 문자열도 '슬롯' 보존 차원에서 그대로 넣음 (필요시 조건부 스킵 가능)
+        bucket[_id].append(sent)
+    return bucket
+
+
+def _iter_exp_slots(ex_obj):
+    """
+    ex_obj 내부의 exp_sentence '슬롯'을 순서대로 반환.
+    각 슬롯은 ('list'|'dict'|'str', container, index_or_key) 형태로 기술.
+    - list: (mode='list', list_obj, idx)
+    - dict: (mode='dict', dict_obj, None) → dict['설명문장']에 기록
+    - str : (mode='str',  ex_obj(부모), 'exp_sentence') → ex_obj['exp_sentence'] 문자열에 기록
+    기타 타입/누락 시, 기본 슬롯을 생성해서 반환.
+    """
+    if not isinstance(ex_obj, dict):
+        return  # 방어적 처리
+
+    if "exp_sentence" not in ex_obj or ex_obj["exp_sentence"] is None:
+        # 기본 한 슬롯을 만들어 준다(문자열)
+        ex_obj["exp_sentence"] = ""
+        yield ("str", ex_obj, "exp_sentence")
+        return
+
+    raw = ex_obj["exp_sentence"]
+
+    if isinstance(raw, list):
+        # 각 원소가 dict/str 등 무엇이든 슬롯으로 간주
+        for i in range(len(raw)):
+            yield ("list", raw, i)
+        return
+
+    if isinstance(raw, dict):
+        # dict 한 덩어리를 하나의 슬롯으로 간주: dict['설명문장']에 기록
+        yield ("dict", raw, None)
+        return
+
+    if isinstance(raw, str):
+        # 문자열 하나면 그 자체가 슬롯
+        yield ("str", ex_obj, "exp_sentence")
+        return
+
+    # 알 수 없는 타입이면 문자열 슬롯으로 강제
+    ex_obj["exp_sentence"] = ""
+    yield ("str", ex_obj, "exp_sentence")
+
+
+def _assign_sentence_to_slot(slot, new_sentence: str):
+    """
+    슬롯 정의에 따라 new_sentence를 해당 위치에 기록.
+    dict 슬롯에는 dict['설명문장'] = [new_sentence] 형태로 적재(추후 추출 함수 호환).
+    list 슬롯의 원소가 dict면 동일하게 '설명문장' 키로, 그 외에는 문자열로 치환.
+    """
+    mode, container, pos = slot
+    s = "" if new_sentence is None else str(new_sentence)
+
+    if mode == "list":
+        item = container[pos]
+        if isinstance(item, dict):
+            # 키 통일: '설명문장'에 리스트 형태로 저장
+            item["설명문장"] = [s]
+        else:
+            container[pos] = s
+        return
+
+    if mode == "dict":
+        container["설명문장"] = [s]
+        return
+
+    if mode == "str":
+        container[pos] = s
+        return
+
+
+def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    엑셀의 '설명 문장' 값을 JSON의 exp_sentence에 반영하여 JSON 객체를 반환.
+    매핑 규칙:
+      - 같은 id 블록 내에서 행 순서대로 EX의 exp_sentence '슬롯'에 순차 매핑
+      - 슬롯 수 > 엑셀 문장 수 → 남는 슬롯은 원본 유지
+      - 슬롯 수 < 엑셀 문장 수 → 초과 문장은 무시
+    """
+    mapping = _collect_excel_sentences_by_id(excel_df)
+
+    docs = json_obj.get("document", [])
+    if not isinstance(docs, list):
+        return json_obj  # 형식 방어
+
+    for doc in docs:
+        doc_id = str(doc.get("id", ""))
+        seq = mapping.get(doc_id, [])
+        if not seq:
+            continue
+
+        used = 0
+        ex_list = doc.get("EX", [])
+        if not isinstance(ex_list, list):
+            continue
+
+        for ex in ex_list:
+            for slot in _iter_exp_slots(ex):
+                if used >= len(seq):
+                    break
+                _assign_sentence_to_slot(slot, seq[used])
+                used += 1
+
+            if used >= len(seq):
+                break
+
+    return json_obj
+
+
+def _pick_zip_members(zf: zipfile.ZipFile):
+    """
+    ZIP에서 JSON 1개, XLSX 1개를 추출 대상으로 선택.
+    - JSON은 project_*.json 우선, 그 외 첫 번째 .json
+    - Excel은 .xlsx 우선(.xls는 의존성에 따라 미지원일 수 있음)
+    """
+    json_members = [m for m in zf.namelist() if m.lower().endswith(".json")]
+    xlsx_members = [m for m in zf.namelist() if m.lower().endswith(".xlsx")]
+    xls_members  = [m for m in zf.namelist() if m.lower().endswith(".xls")]
+
+    # JSON 우선순위: project_*
+    json_member = None
+    for m in json_members:
+        name = Path(m).name
+        if name.startswith("project_"):
+            json_member = m
+            break
+    if json_member is None and json_members:
+        json_member = json_members[0]
+
+    # Excel 우선순위: .xlsx → (가능하면 .xls 대체)
+    excel_member = xlsx_members[0] if xlsx_members else (xls_members[0] if xls_members else None)
+
+    return json_member, excel_member
+
+
+def apply_excel_desc_to_json_from_zip(zip_bytes: bytes, sheet_name: Optional[str] = None) -> Tuple[bytes, str]:
+    """
+    ZIP 바이트(엑셀 + 단일 JSON)를 받아,
+    엑셀의 '설명 문장'을 JSON에 반영한 뒤 (updated_json_bytes, suggested_filename)을 반환.
+    """
+    if not isinstance(zip_bytes, (bytes, bytearray)):
+        raise TypeError("zip_bytes는 bytes이어야 합니다.")
+
+    with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
+        json_member, excel_member = _pick_zip_members(zf)
+
+        if not json_member:
+            raise FileNotFoundError("ZIP 안에 JSON 파일이 없습니다.")
+        if not excel_member:
+            raise FileNotFoundError("ZIP 안에 Excel(.xlsx) 파일이 없습니다.")
+
+        # JSON 로드
+        with zf.open(json_member) as jf:
+            json_obj = json.loads(jf.read().decode("utf-8"))
+
+        # Excel 로드
+        with zf.open(excel_member) as ef:
+            # pandas가 file-like를 받을 수 있음. sheet_name 옵션 전달 가능
+            if sheet_name:
+                df = pd.read_excel(ef, sheet_name=sheet_name)
+            else:
+                df = pd.read_excel(ef)
+
+        # 업데이트
+        updated = apply_excel_desc_to_json(json_obj, df)
+
+        # 파일명 제안
+        base = Path(json_member).name
+        if base.lower().endswith(".json"):
+            out_name = base[:-5] + "_updated.json"
+        else:
+            out_name = base + "_updated.json"
+
+        return json.dumps(updated, ensure_ascii=False, indent=2).encode("utf-8"), out_name
