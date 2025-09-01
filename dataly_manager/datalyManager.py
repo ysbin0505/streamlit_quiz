@@ -3,15 +3,24 @@ import streamlit as st
 import zipfile
 import tempfile
 import os
+import sys
 import json
+import importlib  # ← 추가
+
+# (안전) 현재 디렉토리를 import 경로에 추가
+APP_DIR = os.path.dirname(__file__)
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
 
 # 외부 기능 모듈(기존)
 from newspaper_eval_merged import json_to_excel_stacked
 from newspaper_eval_json import merge_newspaper_eval
 
-# 새로 분리한 변환 모듈
-from dataly_tools.table_to_excel import table_json_to_xlsx_bytes
-from dataly_tools.photo_to_excel import photo_json_to_xlsx_bytes
+# ─────────────────────────────────────────────────────────────
+# 새로 분리한 변환 모듈: 직접 심볼 import 대신 모듈 import로 통일
+import dataly_tools.table_to_excel as t2e
+import dataly_tools.photo_to_excel as p2e
+# ─────────────────────────────────────────────────────────────
 
 st.markdown("""
     <style>
@@ -39,17 +48,6 @@ tabs = st.tabs([
     "📊 표 변환 (JSON→Excel)",
     "🖼️ 사진 변환 (JSON→Excel)"
 ])
-
-# 홈
-with tabs[0]:
-    st.markdown("#### 👋 환영합니다!<br>아래 탭에서 기능을 선택해 주세요.", unsafe_allow_html=True)
-    st.markdown("""
-    - 📰 신문평가 수합: ZIP→엑셀
-    - 💬 대화평가 병합: 준비중
-    - 📦 신문평가 병합: A/B팀 JSON ZIP 병합
-    - 📊 표 변환: 단일 JSON→엑셀
-    - 🖼️ 사진 변환: 단일 JSON→엑셀
-    """)
 
 # 신문평가 수합
 with tabs[1]:
@@ -148,7 +146,8 @@ with tabs[4]:
                 st.error(f"JSON 파싱 실패: {e}")
             else:
                 with st.spinner("엑셀 생성 중..."):
-                    xlsx_bytes = table_json_to_xlsx_bytes(data)
+                    importlib.reload(t2e)  # ← 최신 코드 보장
+                    xlsx_bytes = t2e.table_json_to_xlsx_bytes(data)
                 st.success("엑셀 생성 완료!")
                 st.download_button(
                     label="표_변환.xlsx 다운로드",
@@ -167,12 +166,16 @@ with tabs[4]:
         if not apply_zip:
             st.error("ZIP 파일을 업로드하세요.")
         else:
-            from dataly_tools.table_to_excel import apply_excel_desc_to_json_from_zip  # 지연 임포트
-
             try:
                 zip_bytes = apply_zip.getvalue()
                 sheet_arg = sheet_name.strip() or None
-                updated_bytes, suggested_name = apply_excel_desc_to_json_from_zip(zip_bytes, sheet_arg)
+
+                importlib.reload(t2e)  # ← 최신 코드 보장
+                if not hasattr(t2e, "apply_excel_desc_to_json_from_zip"):
+                    st.error("table_to_excel 모듈에 apply_excel_desc_to_json_from_zip가 없습니다.")
+                    st.caption(f"loaded from: {t2e.__file__}")
+                else:
+                    updated_bytes, suggested_name = t2e.apply_excel_desc_to_json_from_zip(zip_bytes, sheet_arg)
             except Exception as e:
                 st.error(f"적용 중 오류: {e}")
             else:
@@ -200,7 +203,8 @@ with tabs[5]:
                 st.error(f"JSON 파싱 실패: {e}")
             else:
                 with st.spinner("엑셀 생성 중..."):
-                    xlsx_bytes = photo_json_to_xlsx_bytes(data)
+                    importlib.reload(p2e)  # ← 최신 코드 보장
+                    xlsx_bytes = p2e.photo_json_to_xlsx_bytes(data)
                 st.success("엑셀 생성 완료!")
                 st.download_button(
                     label="사진_변환.xlsx 다운로드",
@@ -208,6 +212,7 @@ with tabs[5]:
                     file_name="사진_변환.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
 
 st.markdown("""
 <hr>
