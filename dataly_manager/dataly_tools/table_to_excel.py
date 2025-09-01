@@ -16,7 +16,8 @@ from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 
-
+import zipfile
+from pathlib import Path
 # ===== 유형 매핑 =====
 REF_MAP = {
     "table_ref": "표 설명 문장",
@@ -255,9 +256,6 @@ def table_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
     return output.getvalue()
 
 
-# ====== 여기서부터 추가 ======
-import zipfile
-from pathlib import Path
 
 def _collect_excel_sentences_by_id(df: pd.DataFrame) -> Dict[str, List[str]]:
     """
@@ -527,3 +525,41 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
                     break
 
         return json_obj
+
+def apply_excel_desc_to_json_from_zip(
+    zip_bytes: bytes,
+    sheet_name: Optional[str] = None,
+    skip_blank: bool = True,
+) -> Tuple[bytes, str]:
+    """
+    ZIP 바이트(엑셀 + 단일 JSON)를 받아,
+    엑셀의 '설명 문장'을 JSON에 반영한 뒤 (updated_json_bytes, suggested_filename)을 반환.
+    - 엑셀에 '유형' 컬럼이 있으면 id+유형 정밀 매핑 사용
+    - skip_blank=True면 엑셀의 빈 문자열은 원본을 덮어쓰지 않음
+    """
+    if not isinstance(zip_bytes, (bytes, bytearray)):
+        raise TypeError("zip_bytes는 bytes이어야 합니다.")
+
+    with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
+        json_member, excel_member = _pick_zip_members(zf)
+        if not json_member:
+            raise FileNotFoundError("ZIP 안에 JSON 파일이 없습니다.")
+        if not excel_member:
+            raise FileNotFoundError("ZIP 안에 Excel(.xlsx) 파일이 없습니다.")
+
+        # JSON 로드
+        with zf.open(json_member) as jf:
+            json_obj = json.loads(jf.read().decode("utf-8"))
+
+        # Excel 로드
+        with zf.open(excel_member) as ef:
+            df = pd.read_excel(ef, sheet_name=sheet_name) if sheet_name else pd.read_excel(ef)
+
+        # 반영 (유형 컬럼이 있으면 정밀 매핑 분기 사용)
+        updated = apply_excel_desc_to_json(json_obj, df, skip_blank=skip_blank)
+
+        # 출력 파일명 제안
+        base = Path(json_member).name
+        out_name = (base[:-5] if base.lower().endswith(".json") else base) + "_updated.json"
+
+        return json.dumps(updated, ensure_ascii=False, indent=2).encode("utf-8"), out_name
