@@ -1,17 +1,26 @@
-#dataly_tools/photo_to_excel.py
+# -*- coding: utf-8 -*-
 """
-사진(이미지) JSON -> Excel 변환기
+사진(이미지) JSON -> Excel 변환기 (+ 엑셀 수정본을 JSON에 역반영)
 - 입력: dict(JSON 파싱 결과)
 - 출력: bytes(XLSX), datalyManager에서 st.download_button으로 바로 다운로드
 - 같은 document.id 묶음에서 [id, worker_id_cnst, Medium_category, metadata, mdfcn_memo] 세로 병합
 - metadata: 멀티라인 텍스트 + 같은 id 첫 행에만 URL 하이퍼링크(파란색, 밑줄 없음)
+
+추가:
+- apply_excel_desc_to_json_from_zip(zip_bytes, sheet_name=None, skip_blank=True)
+  : ZIP(엑셀+단일 JSON)을 받아 엑셀의 '설명 문장'을 JSON에 반영해 반환
 """
 
 import json
 import math
-from typing import Any, Dict, Iterable, List, Tuple
+import re
+import zipfile
 from io import BytesIO
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Tuple, Optional
+from collections import defaultdict
 
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -31,10 +40,12 @@ HEADER_FILL = PatternFill(start_color="EEECE1", end_color="EEECE1", fill_type="s
 LINK_BLUE = "0563C1"
 
 # [타입] 문장 형태 파싱용 ([Type] 내용)
-import re
 TYPE_BRACKET_RE = re.compile(r"^\s*\[(.+?)\]\s*(.*)$")
 
 
+# =========================
+# JSON -> Excel (정방향)
+# =========================
 def extract_sentences(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
     """
     EX.exp_sentence 내부를 탐색해 ([Type] sentence) 또는 그냥 sentence를
@@ -274,3 +285,196 @@ def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
         # 빈 통합문서라도 반환(다운로드 버튼 활성 목적)
         return _write_excel_to_bytes([])
     return _write_excel_to_bytes(rows)
+
+
+# ==========================================
+# Excel('설명 문장') → JSON (역방향, ZIP 지원)
+# ==========================================
+def _compose_text_with_type(old_text: str, new_sentence: str, excel_type: str) -> str:
+    """엑셀 '유형'이 있으면 [유형] 문장으로, 없으면 기존 bracket 타입을 유지하며 새 문장으로 교체"""
+    s_new = "" if new_sentence is None else str(new_sentence).strip()
+    t_new = "" if excel_type is None else str(excel_type).strip()
+
+    if t_new:  # 엑셀에서 유형이 명시된 경우 우선
+        return f"[{t_new}] {s_new}".strip()
+
+    # 엑셀 유형이 비었으면, 기존 문자열의 bracket 타입을 유지
+    m = TYPE_BRACKET_RE.match(str(old_text or ""))
+    if m:
+        t_old = m.group(1).strip()
+        return f"[{t_old}] {s_new}".strip()
+
+    return s_new
+
+
+def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
+    """
+    사진 JSON의 EX[*].exp_sentence에서 실제 '문장 슬롯'을 순서대로 찾아
+    (slot_descriptor, old_text) 를 yield.
+    slot_descriptor는 ('list', list_obj, idx) 또는 ('dict_scalar', dict_obj, key)
+    같은 형태로, _assign_text_to_slot에서 사용.
+    """
+    ex_list = doc.get("EX", [])
+    if not isinstance(ex_list, list):
+        return
+
+    for ex in ex_list:
+        exp = ex.get("exp_sentence")
+        if exp is None:
+            continue
+
+        # 최빈 구조: list[ dict{key: list[str] or str}, ... ]
+        if isinstance(exp, list):
+            for item in exp:
+                if isinstance(item, dict):
+                    for k, v in item.items():
+                        if isinstance(v, list):
+                            for i, s in enumerate(v):
+                                yield (("list", v, i), ("" if s is None else str(s)))
+                        else:
+                            yield (("dict_scalar", item, k), ("" if v is None else str(v)))
+                else:
+                    # list 안에 문자열이 직접 들어오는 경우도 방어적 무시(드묾)
+                    continue
+
+        elif isinstance(exp, dict):
+            for k, v in exp.items():
+                if isinstance(v, list):
+                    for i, s in enumerate(v):
+                        yield (("list", v, i), ("" if s is None else str(s)))
+                else:
+                    yield (("dict_scalar", exp, k), ("" if v is None else str(v)))
+
+        elif isinstance(exp, str):
+            # 문자열 하나 전체가 슬롯인 경우
+            yield (("dict_scalar", ex, "exp_sentence"), exp)
+
+
+def _assign_text_to_slot(slot_descriptor, new_text: str):
+    mode = slot_descriptor[0]
+    if mode == "list":
+        lst, idx = slot_descriptor[1], slot_descriptor[2]
+        lst[idx] = new_text
+    elif mode == "dict_scalar":
+        obj, key = slot_descriptor[1], slot_descriptor[2]
+        obj[key] = new_text
+
+
+def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, List[Tuple[str, str]]]:
+    """
+    엑셀에서 id별 (유형, 설명 문장) 시퀀스를 원본 행 순서대로 수집.
+    - 병합 셀로 인해 비는 id/유형은 ffill로 채움
+    - skip_blank=True면 빈 '설명 문장'은 건너뜀
+    반환: { id: [(type, sentence), ...], ... }
+    """
+    required = {"id", "설명 문장"}
+    if not required.issubset(set(df.columns)):
+        raise ValueError("엑셀에 'id', '설명 문장' 컬럼이 필요합니다.")
+
+    tmp = df.copy()
+    # 병합 셀 보정
+    if "id" in tmp.columns:
+        tmp["id"] = tmp["id"].ffill()
+    if "유형" in tmp.columns:
+        tmp["유형"] = tmp["유형"].ffill()
+
+    tmp["id"] = tmp["id"].astype(str)
+    if "유형" not in tmp.columns:
+        tmp["유형"] = ""  # 유형 컬럼이 없어도 동작하게
+    tmp["유형"] = tmp["유형"].fillna("").astype(str)
+    tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
+
+    bucket: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        typ = row["유형"].strip()
+        sent = row["설명 문장"].strip()
+        if skip_blank and not sent:
+            continue
+        bucket[_id].append((typ, sent))
+    return bucket
+
+
+def apply_excel_desc_to_photo_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Any]:
+    """
+    사진 JSON에 엑셀의 '설명 문장'을 반영.
+    - 같은 id 내에서 엑셀 행 순서대로 문장을 소비
+    - 엑셀 '유형'이 있으면 [유형] 접두를 사용, 없으면 기존 bracket 타입 유지
+    """
+    mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
+
+    docs = json_obj.get("document", [])
+    if not isinstance(docs, list):
+        return json_obj
+
+    for doc in docs:
+        doc_id = str(doc.get("id", ""))
+        seq = mapping.get(doc_id, [])
+        if not seq:
+            continue
+
+        used = 0
+        for slot, old_text in _iter_sentence_slots_with_old(doc):
+            if used >= len(seq):
+                break
+            typ, new_sent = seq[used]
+            if skip_blank and not (new_sent or "").strip():
+                used += 1
+                continue
+            composed = _compose_text_with_type(old_text, new_sent, typ)
+            _assign_text_to_slot(slot, composed)
+            used += 1
+
+    return json_obj
+
+
+def apply_excel_desc_to_json_from_zip(
+    zip_bytes: bytes,
+    sheet_name: Optional[str] = None,
+    skip_blank: bool = True,
+) -> Tuple[bytes, str]:
+    """
+    (사진 전용) ZIP(엑셀+단일 JSON)을 받아 엑셀의 '설명 문장'을 JSON에 반영.
+    반환: (updated_json_bytes, suggested_filename)
+    """
+    if not isinstance(zip_bytes, (bytes, bytearray)):
+        raise TypeError("zip_bytes는 bytes/bytearray여야 합니다.")
+
+    with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
+        # 구성 파일 선택
+        json_members = [m for m in zf.namelist() if m.lower().endswith(".json")]
+        xlsx_members = [m for m in zf.namelist() if m.lower().endswith(".xlsx")]
+        xls_members  = [m for m in zf.namelist() if m.lower().endswith(".xls")]
+
+        json_member = None
+        for m in json_members:
+            if Path(m).name.startswith("project_"):
+                json_member = m
+                break
+        if json_member is None and json_members:
+            json_member = json_members[0]
+
+        excel_member = xlsx_members[0] if xlsx_members else (xls_members[0] if xls_members else None)
+
+        if not json_member:
+            raise FileNotFoundError("ZIP 안에 JSON 파일이 없습니다.")
+        if not excel_member:
+            raise FileNotFoundError("ZIP 안에 Excel 파일(.xlsx/.xls)이 없습니다.")
+
+        # JSON 로드
+        with zf.open(json_member) as jf:
+            json_obj = json.loads(jf.read().decode("utf-8"))
+
+        # Excel 로드
+        with zf.open(excel_member) as ef:
+            df = pd.read_excel(ef, sheet_name=sheet_name) if sheet_name else pd.read_excel(ef)
+
+        # 반영
+        updated = apply_excel_desc_to_photo_json(json_obj, df, skip_blank=skip_blank)
+
+        # 파일명 제안
+        base = Path(json_member).name
+        out_name = (base[:-5] if base.lower().endswith(".json") else base) + "_updated.json"
+
+        text = json.dumps(updated, ensure_ascii=False, indent=2)
+        return text.encode("utf-8"), out_name

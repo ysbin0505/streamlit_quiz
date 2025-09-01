@@ -213,6 +213,32 @@ with tabs[5]:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
+    st.divider()
+    st.subheader("🔁 엑셀의 ‘설명 문장’ → JSON 반영 (ZIP)")
+    st.caption("ZIP 안에 .xlsx 1개와 project_*.json 1개가 있어야 합니다. 시트명을 비우면 첫 시트를 사용합니다.")
+    apply_zip_img = st.file_uploader("ZIP 업로드 (Excel + JSON)", type=["zip"], key="zip_apply_desc_tab5")
+    sheet_name_img = st.text_input("엑셀 시트명(선택)", value="", key="sheet_apply_desc_tab5")
+
+    if st.button("적용 실행 (사진)", key="btn_apply_desc_tab5"):
+        if not apply_zip_img:
+            st.error("ZIP 파일을 업로드하세요.")
+        else:
+            try:
+                import importlib; importlib.reload(p2e)  # 최신 코드 보장
+                zip_bytes = apply_zip_img.getvalue()
+                sheet_arg = sheet_name_img.strip() or None
+                updated_bytes, suggested_name = p2e.apply_excel_desc_to_json_from_zip(zip_bytes, sheet_arg)
+            except Exception as e:
+                st.error(f"적용 중 오류: {e}")
+            else:
+                st.success("JSON 업데이트 완료!")
+                st.download_button(
+                    label=f"{suggested_name} 다운로드",
+                    data=updated_bytes,
+                    file_name=suggested_name,
+                    mime="application/json"
+                )
+
 
 st.markdown("""
 <hr>
