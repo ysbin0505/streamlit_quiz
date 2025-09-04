@@ -4,11 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="무거운 탭 삭제">
-      <change afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/consistency.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/dataly_manager/newspaper_eval_merged_ui.py" afterDir="false" />
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="main 단순화">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/ui/newspaper_eval_merged_ui.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/ui/newspaper_eval_merged_ui.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,6 +23,7 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -48,6 +48,7 @@
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
+    &quot;Python.datalyManager.executor&quot;: &quot;Run&quot;,
     &quot;Python.json인코딩.executor&quot;: &quot;Run&quot;,
     &quot;Python.실험.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
@@ -68,6 +69,7 @@
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/dataly_manager/dataly_tools" />
+      <recent name="$PROJECT_DIR$/dataly_manager/ui" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -91,7 +93,7 @@
       <workItem from="1756281239861" duration="8637000" />
       <workItem from="1756688562301" duration="4741000" />
       <workItem from="1756711248401" duration="534000" />
-      <workItem from="1756947483714" duration="3160000" />
+      <workItem from="1756947483714" duration="3396000" />
     </task>
     <task id="LOCAL-00001" summary="ㅇ">
       <option name="closed" value="true" />
@@ -269,11 +271,102 @@
       <option name="project" value="LOCAL" />
       <updated>1756948281698</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756950971354</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1756950971354</updated>
+    </task>
+    <task id="LOCAL-00024" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951440533</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951440533</updated>
+    </task>
+    <task id="LOCAL-00025" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951556002</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951556002</updated>
+    </task>
+    <task id="LOCAL-00026" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951613165</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951613165</updated>
+    </task>
+    <task id="LOCAL-00027" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951689191</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951689191</updated>
+    </task>
+    <task id="LOCAL-00028" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951829989</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951829989</updated>
+    </task>
+    <task id="LOCAL-00029" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951962065</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951962065</updated>
+    </task>
+    <task id="LOCAL-00030" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756954671316</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1756954671316</updated>
+    </task>
+    <task id="LOCAL-00031" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756954697545</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1756954697545</updated>
+    </task>
+    <task id="LOCAL-00032" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756954799591</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1756954799591</updated>
+    </task>
+    <option name="localTasksCounter" value="33" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="ㅇ" />
@@ -281,9 +374,11 @@
     <MESSAGE value="사진 - 반영 추가" />
     <MESSAGE value="홈 추가" />
     <MESSAGE value="무거운 탭 삭제" />
-    <option name="LAST_COMMIT_MESSAGE" value="무거운 탭 삭제" />
+    <MESSAGE value="main 단순화" />
+    <option name="LAST_COMMIT_MESSAGE" value="main 단순화" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/streamlit_quiz$datalyManager.coverage" NAME="datalyManager 커버리지 결과" MODIFIED="1756954753728" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager" />
     <SUITE FILE_PATH="coverage/streamlit_quiz$.coverage" NAME="실험 커버리지 결과" MODIFIED="1754528844554" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/streamlit_quiz$json.coverage" NAME="json인코딩 커버리지 결과" MODIFIED="1756691914280" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
