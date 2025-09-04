@@ -43,8 +43,6 @@ with col2:
 tabs = st.tabs([
     "🏠 홈",
     "📰 신문평가 수합",
-    "💬 대화평가 병합",
-    "📦 신문평가 병합",
     "📊 표 변환 (JSON→Excel)",
     "🖼️ 사진 변환 (JSON→Excel)"
 ])
@@ -57,8 +55,7 @@ with tabs[0]:
     """)
     st.markdown("### 빠른 안내")
     st.markdown("""
-    - **📰 신문평가 수합**: ZIP을 업로드하면 주차별로 엑셀을 생성합니다.  (용량이 커서 안됌)
-    - **📦 신문평가 병합**: A/B팀 폴더 구조의 ZIP을 업로드해 병합 ZIP을 받습니다.   (용량이 커서 안됌)
+    - **📰 신문평가 수합**: ZIP을 업로드하면 주차별로 엑셀을 생성합니다.
     - **📊 표 변환**: `project_*.json` → 엑셀 변환 및 엑셀의 설명을 JSON에 반영.  
     - **🖼️ 사진 변환**: 사진용 `project_*.json` → 엑셀 변환 및 설명 반영.
     """)
@@ -112,52 +109,8 @@ with tabs[1]:
                     else:
                         st.error("엑셀 파일 생성 실패. 내부 오류를 확인하세요.")
 
-# 대화평가 병합 (준비중)
-with tabs[2]:
-    st.header("💬 대화평가 병합 (준비중)")
-    st.info("원하시는 기능이 있다면 요청해 주세요.")
-
-# 신문평가 병합
-with tabs[3]:
-    st.header("📦 신문평가 JSON 병합")
-    st.info("ZIP 내 'A/A팀', 'B/B팀' 폴더와 JSON 파일이 있어야 합니다.")
-    uploaded_zip = st.file_uploader("병합할 신문 원본 ZIP 업로드 (A/B팀 포함 폴더)", type=["zip"], key="zip_merge")
-    merge_week_num = st.number_input("병합할 주차 (예: 1)", min_value=1, step=1, value=1, key="week_merge")
-    files_per_week = st.number_input("병합할 파일 수 (보통 102)", min_value=1, step=1, value=102, key="files_per_week")
-    if st.button("신문평가 병합 실행", key="btn_merge"):
-        if not uploaded_zip:
-            st.error("ZIP 파일을 업로드하세요.")
-        else:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                zip_path = os.path.join(temp_dir, "src.zip")
-                with open(zip_path, "wb") as f:
-                    f.write(uploaded_zip.read())
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(temp_dir)
-
-                candidate_dirs = [os.path.join(temp_dir, d) for d in os.listdir(temp_dir)
-                                  if os.path.isdir(os.path.join(temp_dir, d))]
-                if not candidate_dirs:
-                    st.error("압축 내부 폴더를 찾을 수 없습니다. ZIP 폴더 구조를 확인하세요.")
-                else:
-                    base_dir = candidate_dirs[0]
-                    with st.spinner("병합 중입니다..."):
-                        msg, output_dir, out_zip_path = merge_newspaper_eval(
-                            week_num=int(merge_week_num),
-                            files_per_week=int(files_per_week),
-                            base_dir=base_dir
-                        )
-                    st.success(f"병합 결과: {msg}")
-                    with open(out_zip_path, "rb") as f:
-                        st.download_button(
-                            label=f"{merge_week_num}주차 병합 JSON ZIP 다운로드",
-                            data=f,
-                            file_name=f"merged_{merge_week_num}주차.zip",
-                            mime="application/zip"
-                        )
-
 # 표 변환 (JSON→Excel) — table_to_excel.py 사용
-with tabs[4]:
+with tabs[2]:
     st.header("📊 표 변환 (단일 JSON → Excel)")
     st.info("project_*.json 1개를 업로드하면 표 형태 엑셀로 변환합니다.")
     uploaded_json = st.file_uploader("JSON 업로드 (project_*.json)", type=["json"], key="json_table")
@@ -214,7 +167,7 @@ with tabs[4]:
                 )
 
 # 사진 변환 (JSON→Excel) — photo_to_excel.py 사용
-with tabs[5]:
+with tabs[3]:
     st.header("🖼️ 사진 변환 (단일 JSON → Excel)")
     st.info("project_*.json 1개를 업로드하면 엑셀로 변환합니다.")
     uploaded_json_img = st.file_uploader("JSON 업로드 (project_*.json)", type=["json"], key="json_photo")
