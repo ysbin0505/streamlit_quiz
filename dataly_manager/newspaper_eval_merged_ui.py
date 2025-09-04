@@ -1,4 +1,4 @@
-# sum_eval_ui.py
+# newspaper_eval_merged_ui_ui.py
 import streamlit as st
 import zipfile
 import tempfile
