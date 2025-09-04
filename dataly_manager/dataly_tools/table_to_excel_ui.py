@@ -1,4 +1,4 @@
-#photo_to_excel_ui.py
+#table_to_excel_ui.py
 
 import streamlit as st
 import zipfile
@@ -6,7 +6,7 @@ import tempfile
 import os, json, importlib
 import table_to_excel as t2e
 
-def render_photo_to_excel():
+def render_table_to_excel():
     st.header("📊 표 변환 (단일 JSON → Excel)")
     st.info("project_*.json 1개를 업로드하면 표 형태 엑셀로 변환합니다.")
     uploaded_json = st.file_uploader("JSON 업로드 (project_*.json)", type=["json"], key="json_table")

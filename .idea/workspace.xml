@@ -5,10 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="main 단순화">
-      <change afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/photo_to_excel_ui.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataly_manager/newspaper_eval_merged_ui.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/newspaper_eval_merged_ui.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/photo_to_excel_ui.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel_ui.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,6 +22,7 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -282,6 +281,17 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="ㅇ" />

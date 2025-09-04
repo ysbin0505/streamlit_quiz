@@ -13,7 +13,7 @@ if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
 from newspaper_eval_merged_ui import render_sum_eval_tab
-from dataly_tools.photo_to_excel_ui import render_photo_to_excel
+from dataly_tools.table_to_excel_ui import render_table_to_excel
 import dataly_tools.table_to_excel as t2e
 import dataly_tools.photo_to_excel as p2e
 
@@ -74,7 +74,7 @@ with tabs[1]:
 
 # 표 변환 (JSON→Excel) — table_to_excel.py 사용
 with tabs[2]:
-    render_photo_to_excel()
+    render_table_to_excel()
 
 # 사진 변환 (JSON→Excel) — photo_to_excel.py 사용
 with tabs[3]:
