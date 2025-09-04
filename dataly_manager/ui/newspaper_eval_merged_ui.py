@@ -3,7 +3,7 @@ import streamlit as st
 import zipfile
 import tempfile
 import os
-from newspaper_eval_merged import json_to_excel_stacked
+from dataly_manager.dataly_tools.newspaper_eval_merged import json_to_excel_stacked
 
 def render_sum_eval_tab():
     st.header("📰 신문평가 JSON → 엑셀 자동 수합기")

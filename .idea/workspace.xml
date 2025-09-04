@@ -5,7 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="main 단순화">
-      <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/newspaper_eval_merged.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/newspaper_eval_merged.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/ui/newspaper_eval_merged_ui.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/ui/newspaper_eval_merged_ui.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,6 +68,7 @@
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/dataly_manager/dataly_tools" />
+      <recent name="$PROJECT_DIR$/dataly_manager/ui" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -299,7 +302,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756951613165</updated>
     </task>
-    <option name="localTasksCounter" value="27" />
+    <task id="LOCAL-00027" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756951689191</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1756951689191</updated>
+    </task>
+    <option name="localTasksCounter" value="28" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
