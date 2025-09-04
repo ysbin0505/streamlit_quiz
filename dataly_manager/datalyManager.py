@@ -1,20 +1,16 @@
 # datalyManager.py
 import streamlit as st
-import zipfile
-import tempfile
 import os
 import sys
-import json
-import importlib
 
 # (안전) 현재 디렉토리를 import 경로에 추가
 APP_DIR = os.path.dirname(__file__)
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
-from newspaper_eval_merged_ui import render_sum_eval_tab
-from dataly_tools.table_to_excel_ui import render_table_to_excel
-from dataly_tools.photo_to_excel_ui import render_photo_to_excel
+from dataly_manager.ui.newspaper_eval_merged_ui import render_sum_eval_tab
+from dataly_manager.ui.table_to_excel_ui import render_table_to_excel
+from dataly_manager.ui.photo_to_excel_ui import render_photo_to_excel
 
 st.markdown("""
     <style>

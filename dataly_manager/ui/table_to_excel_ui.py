@@ -1,7 +1,7 @@
 # table_to_excel_ui.py
 import streamlit as st
 import json, importlib
-from . import table_to_excel as t2e
+from dataly_manager.dataly_tools import table_to_excel as t2e
 
 
 def render_table_to_excel():

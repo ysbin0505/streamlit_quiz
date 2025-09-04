@@ -1,7 +1,7 @@
 # photo_to_excel_ui.py
 import streamlit as st
 import json, importlib
-from . import photo_to_excel as p2e
+from dataly_manager.dataly_tools import photo_to_excel as p2e
 
 
 def render_photo_to_excel():
