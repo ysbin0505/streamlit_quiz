@@ -8,8 +8,9 @@ APP_DIR = os.path.dirname(__file__)
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
-from dataly_manager.ui.table_to_excel_ui import render_table_to_excel
-from dataly_manager.ui.photo_to_excel_ui import render_photo_to_excel
+from ui.table_to_excel_ui import render_table_to_excel
+from ui.photo_to_excel_ui import render_photo_to_excel
+
 
 
 
