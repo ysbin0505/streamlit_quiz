@@ -8,7 +8,6 @@ APP_DIR = os.path.dirname(__file__)
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
-from dataly_manager.ui.newspaper_eval_merged_ui import render_sum_eval_tab
 from dataly_manager.ui.table_to_excel_ui import render_table_to_excel
 from dataly_manager.ui.photo_to_excel_ui import render_photo_to_excel
 
@@ -47,7 +46,6 @@ with tabs[0]:
     """)
     st.markdown("### 빠른 안내")
     st.markdown("""
-    - **📰 신문평가 수합**: ZIP을 업로드하면 주차별로 엑셀을 생성합니다.
     - **📊 표 변환**: `project_*.json` → 엑셀 변환 및 엑셀의 설명을 JSON에 반영.  
     - **🖼️ 사진 변환**: 사진용 `project_*.json` → 엑셀 변환 및 설명 반영.
     """)
@@ -64,16 +62,13 @@ with tabs[0]:
 
     st.caption("상단 탭에서 기능을 선택해 주세요.")
 
-# 신문평가 수합
-with tabs[1]:
-    render_sum_eval_tab()
 
 # 표 변환 (JSON→Excel) — table_to_excel.py 사용
-with tabs[2]:
+with tabs[1]:
     render_table_to_excel()
 
 # 사진 변환 (JSON→Excel) — photo_to_excel.py 사용
-with tabs[3]:
+with tabs[2]:
     render_photo_to_excel()
 
 st.markdown("""
