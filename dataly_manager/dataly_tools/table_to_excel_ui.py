@@ -1,7 +1,8 @@
 # table_to_excel_ui.py
 import streamlit as st
 import json, importlib
-import table_to_excel as t2e
+from . import table_to_excel as t2e
+
 
 def render_table_to_excel():
     st.header("📊 표 변환 (단일 JSON → Excel)")

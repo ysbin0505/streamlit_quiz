@@ -1,7 +1,8 @@
 # photo_to_excel_ui.py
 import streamlit as st
 import json, importlib
-import photo_to_excel as p2e
+from . import photo_to_excel as p2e
+
 
 def render_photo_to_excel():
     st.header("🖼️ 사진 변환 (단일 JSON → Excel)")
