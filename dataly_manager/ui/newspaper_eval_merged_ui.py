@@ -1,4 +1,4 @@
-# newspaper_eval_merged_ui_ui.py
+# ui/newspaper_eval_merged_ui.py
 import streamlit as st
 import zipfile
 import tempfile

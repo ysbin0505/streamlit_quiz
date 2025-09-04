@@ -1,4 +1,4 @@
-# table_to_excel_ui.py
+# ui/table_to_excel_ui.py
 import streamlit as st
 import json, importlib
 from dataly_manager.dataly_tools import table_to_excel as t2e

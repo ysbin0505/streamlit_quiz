@@ -1,4 +1,4 @@
-# photo_to_excel_ui.py
+# ui/photo_to_excel_ui.py
 import streamlit as st
 import json, importlib
 from dataly_manager.dataly_tools import photo_to_excel as p2e
