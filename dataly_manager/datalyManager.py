@@ -3,16 +3,15 @@ import streamlit as st
 import os
 import sys
 
-# (안전) 현재 디렉토리를 import 경로에 추가
-APP_DIR = os.path.dirname(__file__)
-if APP_DIR not in sys.path:
-    sys.path.insert(0, APP_DIR)
+# 패키지 루트(= dataly_manager의 부모 폴더)를 sys.path에 추가
+APP_DIR = os.path.dirname(os.path.abspath(__file__))       # .../dataly_manager
+ROOT_DIR = os.path.dirname(APP_DIR)                        # .../
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
-from ui.table_to_excel_ui import render_table_to_excel
-from ui.photo_to_excel_ui import render_photo_to_excel
-
-
-
+# 절대 임포트로 통일
+from dataly_manager.ui.table_to_excel_ui import render_table_to_excel
+from dataly_manager.ui.photo_to_excel_ui import render_photo_to_excel
 
 st.markdown("""
     <style>

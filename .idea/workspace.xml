@@ -4,8 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="main 단순화">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="main 단순화~">
       <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -374,7 +373,23 @@
       <option name="project" value="LOCAL" />
       <updated>1756956049931</updated>
     </task>
-    <option name="localTasksCounter" value="36" />
+    <task id="LOCAL-00036" summary="main 단순화">
+      <option name="closed" value="true" />
+      <created>1756956243772</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1756956243772</updated>
+    </task>
+    <task id="LOCAL-00037" summary="main 단순화~">
+      <option name="closed" value="true" />
+      <created>1756956457324</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1756956457324</updated>
+    </task>
+    <option name="localTasksCounter" value="38" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -398,7 +413,8 @@
     <MESSAGE value="홈 추가" />
     <MESSAGE value="무거운 탭 삭제" />
     <MESSAGE value="main 단순화" />
-    <option name="LAST_COMMIT_MESSAGE" value="main 단순화" />
+    <MESSAGE value="main 단순화~" />
+    <option name="LAST_COMMIT_MESSAGE" value="main 단순화~" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$datalyManager.coverage" NAME="datalyManager 커버리지 결과" MODIFIED="1756954753728" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager" />
