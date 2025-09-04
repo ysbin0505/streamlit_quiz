@@ -1,9 +1,6 @@
-#table_to_excel_ui.py
-
+# table_to_excel_ui.py
 import streamlit as st
-import zipfile
-import tempfile
-import os, json, importlib
+import json, importlib
 import table_to_excel as t2e
 
 def render_table_to_excel():
@@ -21,7 +18,7 @@ def render_table_to_excel():
                 st.error(f"JSON 파싱 실패: {e}")
             else:
                 with st.spinner("엑셀 생성 중..."):
-                    importlib.reload(t2e)  # ← 최신 코드 보장
+                    importlib.reload(t2e)  # 최신 코드 보장
                     xlsx_bytes = t2e.table_json_to_xlsx_bytes(data)
                 st.success("엑셀 생성 완료!")
                 st.download_button(
@@ -45,7 +42,7 @@ def render_table_to_excel():
                 zip_bytes = apply_zip.getvalue()
                 sheet_arg = sheet_name.strip() or None
 
-                importlib.reload(t2e)  # ← 최신 코드 보장
+                importlib.reload(t2e)  # 최신 코드 보장
                 if not hasattr(t2e, "apply_excel_desc_to_json_from_zip"):
                     st.error("table_to_excel 모듈에 apply_excel_desc_to_json_from_zip가 없습니다.")
                     st.caption(f"loaded from: {t2e.__file__}")
