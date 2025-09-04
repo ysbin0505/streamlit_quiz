@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="홈 추가">
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="무거운 탭 삭제">
+      <change afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/consistency.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/dataly_manager/newspaper_eval_merged_ui.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
     </list>
@@ -89,7 +91,7 @@
       <workItem from="1756281239861" duration="8637000" />
       <workItem from="1756688562301" duration="4741000" />
       <workItem from="1756711248401" duration="534000" />
-      <workItem from="1756947483714" duration="787000" />
+      <workItem from="1756947483714" duration="3160000" />
     </task>
     <task id="LOCAL-00001" summary="ㅇ">
       <option name="closed" value="true" />
@@ -259,7 +261,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756947991652</updated>
     </task>
-    <option name="localTasksCounter" value="22" />
+    <task id="LOCAL-00022" summary="무거운 탭 삭제">
+      <option name="closed" value="true" />
+      <created>1756948281698</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1756948281698</updated>
+    </task>
+    <option name="localTasksCounter" value="23" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -270,7 +280,8 @@
     <MESSAGE value="표 - 반영 추가" />
     <MESSAGE value="사진 - 반영 추가" />
     <MESSAGE value="홈 추가" />
-    <option name="LAST_COMMIT_MESSAGE" value="홈 추가" />
+    <MESSAGE value="무거운 탭 삭제" />
+    <option name="LAST_COMMIT_MESSAGE" value="무거운 탭 삭제" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$.coverage" NAME="실험 커버리지 결과" MODIFIED="1754528844554" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
