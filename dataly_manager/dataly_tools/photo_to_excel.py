@@ -290,21 +290,34 @@ def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
 # ==========================================
 # Excel('설명 문장') → JSON (역방향, ZIP 지원)
 # ==========================================
+# 기존 함수 교체
 def _compose_text_with_type(old_text: str, new_sentence: str, excel_type: str) -> str:
-    """엑셀 '유형'이 있으면 [유형] 문장으로, 없으면 기존 bracket 타입을 유지하며 새 문장으로 교체"""
+    """
+    엑셀 '유형'만 바꿔도 문장은 유지하면서 타입을 교체.
+    - new_sentence가 비어 있어도 excel_type이 있으면 타입만 바꾼다.
+    - excel_type에 대괄호가 이미 있으면 이중 대괄호를 방지한다.
+    """
     s_new = "" if new_sentence is None else str(new_sentence).strip()
     t_new = "" if excel_type is None else str(excel_type).strip()
 
-    if t_new:  # 엑셀에서 유형이 명시된 경우 우선
-        return f"[{t_new}] {s_new}".strip()
+    # [타입] 파싱
+    old_text_str = str(old_text or "")
+    m = TYPE_BRACKET_RE.match(old_text_str)
+    old_type = (m.group(1).strip() if m else "")
+    old_body = (m.group(2).strip() if m else old_text_str.strip())
 
-    # 엑셀 유형이 비었으면, 기존 문자열의 bracket 타입을 유지
-    m = TYPE_BRACKET_RE.match(str(old_text or ""))
-    if m:
-        t_old = m.group(1).strip()
-        return f"[{t_old}] {s_new}".strip()
+    # 엑셀 유형에 대괄호가 들어온 경우 이중 괄호 방지
+    if t_new.startswith("[") and t_new.endswith("]"):
+        t_new = t_new[1:-1].strip()
 
-    return s_new
+    # 본문은 새 문장 있으면 교체, 없으면 기존 유지
+    body = s_new if s_new else old_body
+
+    # 타입 우선순위: 엑셀 유형 > 기존 유형 > 없음
+    final_type = t_new if t_new else old_type
+
+    return f"[{final_type}] {body}".strip() if final_type else body
+
 
 
 def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
@@ -413,15 +426,22 @@ def apply_excel_desc_to_photo_json(json_obj: Dict[str, Any], excel_df: pd.DataFr
         if not seq:
             continue
 
+        # apply_excel_desc_to_photo_json 내 for 루프 일부 교체
         used = 0
         for slot, old_text in _iter_sentence_slots_with_old(doc):
             if used >= len(seq):
                 break
             typ, new_sent = seq[used]
-            if skip_blank and not (new_sent or "").strip():
+            typ_clean = (typ or "").strip()
+            sent_clean = (new_sent or "").strip()
+
+            # (중요) 문장이 비어 있어도 유형만 바꿔 넣을 수 있도록 조건 완화
+            if skip_blank and not sent_clean and not typ_clean:
+                # 둘 다 비면 변화 없이 슬롯만 소비(정렬/정합 유지)
                 used += 1
                 continue
-            composed = _compose_text_with_type(old_text, new_sent, typ)
+
+            composed = _compose_text_with_type(old_text, sent_clean, typ_clean)
             _assign_text_to_slot(slot, composed)
             used += 1
 
