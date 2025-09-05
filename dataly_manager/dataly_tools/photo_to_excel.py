@@ -290,7 +290,78 @@ def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
 # ==========================================
 # Excel('설명 문장') → JSON (역방향, ZIP 지원)
 # ==========================================
-# 기존 함수 교체
+
+def _delete_slot(slot_descriptor):
+    """
+    ('list', list_obj, idx)  -> list_obj.pop(idx)
+    ('dict_scalar', dict_obj, key) -> dict_obj.pop(key, None)
+    """
+    mode = slot_descriptor[0]
+    if mode == "list":
+        lst, idx = slot_descriptor[1], slot_descriptor[2]
+        if 0 <= idx < len(lst):
+            lst.pop(idx)
+    elif mode == "dict_scalar":
+        obj, key = slot_descriptor[1], slot_descriptor[2]
+        if isinstance(obj, dict):
+            obj.pop(key, None)
+
+
+def _cleanup_exp_sentences(doc: Dict[str, Any]) -> None:
+    """
+    빈 문자열/빈 리스트/빈 딕셔너리를 걷어내서 exp_sentence 구조를 가볍게 정리.
+    (키 자체도 제거)
+    """
+    ex_list = doc.get("EX", [])
+    if not isinstance(ex_list, list):
+        return
+
+    for ex in ex_list:
+        exp = ex.get("exp_sentence")
+        if exp is None:
+            continue
+
+        # list 형태
+        if isinstance(exp, list):
+            new_exp = []
+            for item in exp:
+                if isinstance(item, dict):
+                    new_item = {}
+                    for k, v in item.items():
+                        if isinstance(v, list):
+                            vv = [str(s).strip() for s in v if str(s or "").strip()]
+                            if vv:
+                                new_item[k] = vv
+                        else:
+                            s = str(v or "").strip()
+                            if s:
+                                new_item[k] = s
+                    if new_item:
+                        new_exp.append(new_item)
+                # dict가 아니면 버림
+            ex["exp_sentence"] = new_exp
+            if not new_exp:
+                # 완전히 비었으면 키 제거
+                ex.pop("exp_sentence", None)
+
+        # dict 형태
+        elif isinstance(exp, dict):
+            new_exp = {}
+            for k, v in exp.items():
+                if isinstance(v, list):
+                    vv = [str(s).strip() for s in v if str(s or "").strip()]
+                    if vv:
+                        new_exp[k] = vv
+                else:
+                    s = str(v or "").strip()
+                    if s:
+                        new_exp[k] = s
+            if new_exp:
+                ex["exp_sentence"] = new_exp
+            else:
+                ex.pop("exp_sentence", None)
+
+
 def _compose_text_with_type(old_text: str, new_sentence: str, excel_type: str) -> str:
     """
     엑셀 '유형'만 바꿔도 문장은 유지하면서 타입을 교체.
@@ -408,11 +479,20 @@ def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dic
     return bucket
 
 
-def apply_excel_desc_to_photo_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = False) -> Dict[str, Any]:
+def apply_excel_desc_to_photo_json(
+    json_obj: Dict[str, Any],
+    excel_df: pd.DataFrame,
+    skip_blank: bool = False
+) -> Dict[str, Any]:
     """
     사진 JSON에 엑셀의 '설명 문장'을 반영.
-    - 같은 id 내에서 엑셀 행 순서대로 문장을 소비
-    - 엑셀 '유형'이 있으면 [유형] 접두를 사용, 없으면 기존 bracket 타입 유지
+    - 같은 id 내에서 '엑셀 행 순서'와 '기존 JSON 슬롯 순서'를 1:1로 맞춰 반영
+    - 규칙:
+      1) 유형·문장 모두 빈값("")이면 해당 슬롯을 '삭제'
+      2) 유형만 있고 문장 빈값이면 '유형만 교체, 본문 유지'
+      3) 문장만 있고 유형 빈값이면 '본문만 교체, 기존 유형 유지'
+      4) 엑셀 행 수 < JSON 슬롯 수면, 남은 슬롯은 뒤에서부터 삭제하여
+         최종 슬롯 개수를 엑셀과 '정확히 동일'하게 맞춤
     """
     mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
 
@@ -423,29 +503,42 @@ def apply_excel_desc_to_photo_json(json_obj: Dict[str, Any], excel_df: pd.DataFr
     for doc in docs:
         doc_id = str(doc.get("id", ""))
         seq = mapping.get(doc_id, [])
-        if not seq:
-            continue
+        # 현재 문서의 슬롯 스냅샷(삭제 안전 처리를 위해 list로 고정)
+        slots = list(_iter_sentence_slots_with_old(doc))
 
-        # apply_excel_desc_to_photo_json 내 for 루프 일부 교체
-        used = 0
-        for slot, old_text in _iter_sentence_slots_with_old(doc):
-            if used >= len(seq):
-                break
-            typ, new_sent = seq[used]
+        # 엑셀-JSON 매칭 길이
+        n = min(len(seq), len(slots))
+        delete_slot_indices = []
+
+        # 1) 앞에서부터 n개 매칭
+        for i in range(n):
+            (slot_desc, old_text) = slots[i]
+            typ, new_sent = seq[i]
             typ_clean = (typ or "").strip()
             sent_clean = (new_sent or "").strip()
 
-            # (중요) 문장이 비어 있어도 유형만 바꿔 넣을 수 있도록 조건 완화
-            if skip_blank and not sent_clean and not typ_clean:
-                # 둘 다 비면 변화 없이 슬롯만 소비(정렬/정합 유지)
-                used += 1
+            # 둘 다 비면 '삭제' 지시로 간주
+            if typ_clean == "" and sent_clean == "":
+                delete_slot_indices.append(i)
                 continue
 
+            # 변경(문장/유형 교체 규칙)
             composed = _compose_text_with_type(old_text, sent_clean, typ_clean)
-            _assign_text_to_slot(slot, composed)
-            used += 1
+            _assign_text_to_slot(slot_desc, composed)
+
+        # 2) 엑셀 길이보다 JSON 슬롯이 더 길면, 남은 슬롯은 모두 삭제
+        if len(slots) > len(seq):
+            delete_slot_indices.extend(range(n, len(slots)))
+
+        # 3) 삭제 실제 수행 (뒤에서부터 지워서 인덱스 안정성 확보)
+        for idx in sorted(delete_slot_indices, reverse=True):
+            _delete_slot(slots[idx][0])
+
+        # 4) 비어버린 컨테이너/키 정리
+        _cleanup_exp_sentences(doc)
 
     return json_obj
+
 
 
 def apply_excel_desc_to_json_from_zip(
