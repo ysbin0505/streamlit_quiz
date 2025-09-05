@@ -408,7 +408,7 @@ def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dic
     return bucket
 
 
-def apply_excel_desc_to_photo_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Any]:
+def apply_excel_desc_to_photo_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = False) -> Dict[str, Any]:
     """
     사진 JSON에 엑셀의 '설명 문장'을 반영.
     - 같은 id 내에서 엑셀 행 순서대로 문장을 소비
