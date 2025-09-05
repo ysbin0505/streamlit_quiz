@@ -440,7 +440,7 @@ def _pick_zip_members(zf: zipfile.ZipFile):
 
     return json_member, excel_member
 
-def _collect_excel_sentences_by_id_type(df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Dict[str, List[str]]]:
+def _collect_excel_sentences_by_id_type(df: pd.DataFrame, skip_blank: bool = False) -> Dict[str, Dict[str, List[str]]]:
     required = {"id", "유형", "설명 문장"}
     if not required.issubset(set(df.columns)):
         raise ValueError("엑셀에 'id', '유형', '설명 문장' 컬럼이 모두 필요합니다.")
