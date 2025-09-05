@@ -31,7 +31,35 @@ TYPE_TAGS = {"table_ref", "row_ref", "col_ref", "cell_ref"}
 REF_MAP_INV = {v: k for k, v in REF_MAP.items()}
 
 
-# --- 추가: 설명문장 안전 추출 헬퍼들 ---
+def _set_exp_sentence_on_dict(d: Dict[str, Any], new_sentence: str, prefer_existing: bool = True) -> None:
+    """
+    d(dict) 내부의 '설명문장' 계열 키(공백/변형 포함)를 모두 정리하고 하나의 키로만 기록.
+    - prefer_existing=True: 기존에 쓰던 키명이 있으면 그 키를 유지하여 overwrite
+    - 기존 키가 없다면 기본 키 '설명문장'으로 기록
+    - 기록 형태는 호환성을 위해 list[str] 유지
+    """
+    if not isinstance(d, dict):
+        return
+
+    # 후보 키 수집(공백 제거 후 비교)
+    candidates = []
+    for k in list(d.keys()):
+        kn = str(k).replace(" ", "")
+        if kn in ("설명문장", "설명문장들", "설명문", "설명"):
+            candidates.append(k)
+
+    # 사용할 타깃 키 결정
+    target_key = candidates[0] if (prefer_existing and candidates) else "설명문장"
+
+    # 중복 방지: 기존 후보 키 제거
+    for k in candidates:
+        try:
+            del d[k]
+        except Exception:
+            pass
+
+    d[target_key] = ["" if new_sentence is None else str(new_sentence)]
+
 def _iter_exp_items(ex_obj):
     """ex_obj.get('exp_sentence')가 list/dict/str 어떤 형태든 리스트로 정규화"""
     raw = ex_obj.get("exp_sentence", [])
@@ -324,8 +352,8 @@ def _iter_exp_slots(ex_obj):
 def _assign_sentence_to_slot(slot, new_sentence: str):
     """
     슬롯 정의에 따라 new_sentence를 해당 위치에 기록.
-    dict 슬롯에는 dict['설명문장'] = [new_sentence] 형태로 적재(추후 추출 함수 호환).
-    list 슬롯의 원소가 dict면 동일하게 '설명문장' 키로, 그 외에는 문자열로 치환.
+    dict/list-dict 슬롯은 _set_exp_sentence_on_dict()로 정규화하여
+    '설명문장' 계열 키가 둘 이상 생기지 않도록 하나의 키로만 overwrite.
     """
     mode, container, pos = slot
     s = "" if new_sentence is None else str(new_sentence)
@@ -333,14 +361,15 @@ def _assign_sentence_to_slot(slot, new_sentence: str):
     if mode == "list":
         item = container[pos]
         if isinstance(item, dict):
-            # 키 통일: '설명문장'에 리스트 형태로 저장
-            item["설명문장"] = [s]
+            # 기존/변형 키 정리 후 하나의 키로 overwrite
+            _set_exp_sentence_on_dict(item, s, prefer_existing=True)
         else:
             container[pos] = s
         return
 
     if mode == "dict":
-        container["설명문장"] = [s]
+        # 기존/변형 키 정리 후 하나의 키로 overwrite
+        _set_exp_sentence_on_dict(container, s, prefer_existing=True)
         return
 
     if mode == "str":
@@ -463,9 +492,9 @@ def _label_to_ref_type(label: Any) -> str:
 def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Any]:
     """
     엑셀의 '설명 문장'을 JSON의 exp_sentence에 반영.
-    - '유형' 컬럼이 있으면 id+유형별로 정밀 매핑(권장)
+    - '유형' 컬럼이 있으면 id+유형별 정밀 매핑(권장)
     - 없으면(구버전 엑셀) id 순서대로 일괄 배분(이전 호환)
-    - skip_blank=True면 엑셀의 빈 문자열은 덮어쓰지 않음
+    - skip_blank=True면 엑셀의 빈 문자열은 원본을 덮어쓰지 않음
     """
     docs = json_obj.get("document", [])
     if not isinstance(docs, list):
@@ -474,7 +503,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
     has_type_col = "유형" in excel_df.columns
 
     if has_type_col:
-        # 3-1) 유형 정밀 매핑
+        # 유형 정밀 매핑
         mapping_by_type = _collect_excel_sentences_by_id_type(excel_df, skip_blank=skip_blank)
 
         for doc in docs:
@@ -506,7 +535,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
                     if used >= len(seq):
                         break
                     s = seq[used]
-                    # skip_blank=True인 경우, 여기선 빈 문자열이 이미 제거되어 있음.
+                    # skip_blank=True인 경우, mapping 단계에서 이미 공백은 제거됨
                     _assign_sentence_to_slot(slot, s)
                     used += 1
 
@@ -514,36 +543,36 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
 
         return json_obj
 
-    else:
-        # 3-2) (호환) '유형'이 없을 때: id 단위 순서 배분
-        mapping = _collect_excel_sentences_by_id(excel_df)
+    # === '유형' 컬럼이 없는 구버전 엑셀 호환 경로 ===
+    mapping = _collect_excel_sentences_by_id(excel_df)
 
-        for doc in docs:
-            doc_id = str(doc.get("id", ""))
-            seq = mapping.get(doc_id, [])
-            if not seq:
-                continue
+    for doc in docs:
+        doc_id = str(doc.get("id", ""))
+        seq = mapping.get(doc_id, [])
+        if not seq:
+            continue
 
-            used = 0
-            ex_list = doc.get("EX", [])
-            if not isinstance(ex_list, list):
-                continue
+        used = 0
+        ex_list = doc.get("EX", [])
+        if not isinstance(ex_list, list):
+            continue
 
-            for ex in ex_list:
-                for slot in _iter_exp_slots(ex):
-                    if used >= len(seq):
-                        break
-                    s = seq[used]
-                    if skip_blank and (s is None or str(s).strip() == ""):
-                        used += 1
-                        continue
-                    _assign_sentence_to_slot(slot, s)
-                    used += 1
-
+        for ex in ex_list:
+            for slot in _iter_exp_slots(ex):
                 if used >= len(seq):
                     break
+                s = seq[used]
+                if skip_blank and (s is None or str(s).strip() == ""):
+                    used += 1
+                    continue
+                _assign_sentence_to_slot(slot, s)
+                used += 1
 
-        return json_obj
+            if used >= len(seq):
+                break
+
+    return json_obj
+
 
 def apply_excel_desc_to_json_from_zip(
     zip_bytes: bytes,

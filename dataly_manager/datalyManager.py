@@ -38,7 +38,7 @@ tabs = st.tabs([
     "🖼️ 사진 변환 (JSON→Excel)"
 ])
 
-# 홈
+# 홈 - home_ui.py 사용
 with tabs[0]:
     render_home_ui()
 
