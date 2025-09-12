@@ -9,7 +9,7 @@ ROOT_DIR = os.path.dirname(APP_DIR)
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from dataly_manager.dataly_tools import jsons_to_wsd_excel
+from dataly_manager.dataly_tools.wsd_to_excel import jsons_to_wsd_excel
 
 def render_wsd_to_excel_ui():
     st.header("📄 WSD/DP/SRL/ZA → 엑셀 변환")
