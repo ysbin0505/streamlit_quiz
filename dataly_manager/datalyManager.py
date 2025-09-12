@@ -13,6 +13,7 @@ if ROOT_DIR not in sys.path:
 from dataly_manager.ui.table_to_excel_ui import render_table_to_excel
 from dataly_manager.ui.photo_to_excel_ui import render_photo_to_excel
 from dataly_manager.ui.home_ui import render_home_ui
+from dataly_manager.ui.wsd_to_excel_ui import render_wsd_to_excel_ui
 
 st.markdown("""
     <style>
@@ -35,7 +36,8 @@ with col2:
 tabs = st.tabs([
     "🏠 홈",
     "📊 표 변환 (JSON→Excel)",
-    "🖼️ 사진 변환 (JSON→Excel)"
+    "🖼️ 사진 변환 (JSON→Excel)",
+    "📄 WSD 변환 (JSON→Excel)"
 ])
 
 # 홈 - home_ui.py 사용
@@ -49,6 +51,10 @@ with tabs[1]:
 # 사진 변환 (JSON→Excel) — photo_to_excel.py 사용
 with tabs[2]:
     render_photo_to_excel()
+
+# ✅ WSD/DP/SRL/ZA → 엑셀 변환
+with tabs[3]:
+    render_wsd_to_excel_ui()
 
 st.markdown("""
 <hr>

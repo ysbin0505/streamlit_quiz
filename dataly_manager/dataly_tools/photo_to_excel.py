@@ -390,7 +390,6 @@ def _compose_text_with_type(old_text: str, new_sentence: str, excel_type: str) -
     return f"[{final_type}] {body}".strip() if final_type else body
 
 
-
 def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
     """
     사진 JSON의 EX[*].exp_sentence에서 실제 '문장 슬롯'을 순서대로 찾아
