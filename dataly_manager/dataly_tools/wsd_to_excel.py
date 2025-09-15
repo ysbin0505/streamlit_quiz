@@ -217,62 +217,102 @@ def jsons_to_wsd_excel(
                             else:
                                 cell["pred"] = pred_cell
 
-                # ----- ZA map (antecedent 기준으로 각 wid 행에 기록) -----
-                za_by_wid: Dict[str, List[tuple]] = {}
+                # ----- ZA map (GUI와 동일: predicate.word_id 행에 집계, 문장별 그룹은 '/' 구분) -----
+                za_by_row: Dict[str, Dict[str, str]] = {}
 
-                for item in za_list:
-                    za_arg = item.get("ZA_argument") or {}
-                    rest_form = str(za_arg.get("form", "")).strip()
-                    rest_type = str(za_arg.get("type", "")).strip()
+                def _find_sentence_by_full_id(doc_obj: Dict[str, Any], sid_full: str) -> Dict[str, Any]:
+                    for s in doc_obj.get("sentence", []) or []:
+                        if str(s.get("id", "")).strip() == sid_full:
+                            return s
+                    return {}
 
-                    ants = item.get("antecedent", []) or []
-                    ant_sids, ant_wids, ant_forms = [], [], []
-
-                    for a in ants:
-                        # sentence_id 꼬리만 추출
-                        sid_tail = _short_sid(str(a.get("sentence_id", "")).strip())
-                        if sid_tail:
-                            ant_sids.append(sid_tail)
-
-                        # antecedent.word_id (단일/리스트 모두 처리)
-                        w = a.get("word_id")
-                        if isinstance(w, list):
-                            for x in w:
-                                s = str(x).strip()
-                                if s.isdigit():
-                                    ant_wids.append(s)
-                        else:
-                            s = str(w).strip()
-                            if s.isdigit():
-                                ant_wids.append(s)
-
-                        # antecedent.form
-                        f = str(a.get("form", "")).strip()
-                        if f:
-                            ant_forms.append(f)
-
-                    # antecedent 정보가 하나도 없으면 스킵
-                    if not (ant_sids or ant_wids or ant_forms):
+                for za in za_list:
+                    pred = za.get("predicate", {}) or {}
+                    row_wid = str(pred.get("word_id", "")).strip()
+                    if not row_wid or not row_wid.isdigit():
                         continue
 
-                    # 항목 내부 중복 제거(순서 보존)
-                    def _uniq_keep_order(lst: List[str]) -> List[str]:
-                        seen, out = set(), []
-                        for v in lst:
-                            if v not in seen:
-                                seen.add(v);
-                                out.append(v)
-                        return out
+                    # 복원어: ZA_argument.form 우선, 없으면 predicate.form(하위호환)
+                    za_arg = za.get("ZA_argument") or {}
+                    rest_form = str(za_arg.get("form", "") or pred.get("form", "")).strip()
 
-                    ant_sen_id_join = " + ".join(_uniq_keep_order(ant_sids))
-                    ant_word_id_join = " + ".join(_uniq_keep_order(ant_wids))
-                    ant_form_join = " + ".join(_uniq_keep_order(ant_forms))
+                    ants = za.get("antecedent", []) or []
 
-                    # 이 ZA 항목을 "모든 antecedent wid" 행에 붙인다
-                    for tw in _uniq_keep_order(ant_wids):
-                        za_by_wid.setdefault(tw, []).append(
-                            (ant_sen_id_join, ant_word_id_join, ant_form_join, rest_form, rest_type)
-                        )
+                    # 문장별 그룹: comp_sid -> {"wids":[], "forms":[], "types":[]}
+                    groups: Dict[str, Dict[str, List[str]]] = {}
+                    for a in ants:
+                        sid_full = str(a.get("sentence_id", "")).strip()
+                        comp_sid = _short_sid(sid_full)  # 예: "NZRW...3.1" -> "3.1"
+                        if not comp_sid:
+                            continue
+
+                        # word_id 수집 (단일/리스트 모두 허용)
+                        raw_ids = a.get("word_id", [])
+                        id_list: List[int] = []
+                        if isinstance(raw_ids, list):
+                            for v in raw_ids:
+                                s = str(v).strip()
+                                if s.isdigit():
+                                    id_list.append(int(s))
+                        else:
+                            s = str(raw_ids).strip()
+                            if s.isdigit():
+                                id_list.append(int(s))
+
+                        # form 파싱: 공백 split, 부족하면 id→form 보강
+                        forms_text = str(a.get("form", "") or "").strip()
+                        form_parts = re.findall(r"\S+", forms_text) if forms_text else []
+
+                        # id가 있는데 form이 없거나 '#'만 있으면, 해당 문장에서 id→form 보강
+                        if id_list and (not form_parts or all(p == "#" for p in form_parts)):
+                            ref_sent = _find_sentence_by_full_id(doc, sid_full)
+                            if ref_sent:
+                                wid2form = {int(wd.get("id")): wd.get("form", "") for wd in
+                                            (ref_sent.get("word", []) or [])}
+                                form_parts = [wid2form.get(wid_int, "") for wid_int in id_list]
+
+                        typ = str(a.get("type", "") or "").strip()
+
+                        g = groups.setdefault(comp_sid, {"wids": [], "forms": [], "types": []})
+
+                        # 선행어 없음('#') 처리
+                        if (not id_list) and (forms_text == "#"):
+                            g["wids"].append("#")
+                            g["forms"].append("#")
+                        else:
+                            for j, wid_int in enumerate(id_list):
+                                g["wids"].append(wid_int)
+                                g["forms"].append(form_parts[j] if j < len(form_parts) else "")
+
+                        if typ and typ not in g["types"]:
+                            g["types"].append(typ)
+
+                    # 같은 predicate.row_wid 에 누적
+                    acc = za_by_row.setdefault(row_wid,
+                                               {"sid": [], "sid_disp": [], "wid": [], "ant": [], "typ": [], "rest": []})
+
+                    for comp_sid, g in groups.items():
+                        is_none_group = (len(g.get("wids", [])) == 1 and str(g["wids"][0]) == "#")
+                        sid_disp = "#" if is_none_group else comp_sid
+
+                        acc["sid"].append(comp_sid)  # 실제 꼬리값
+                        acc["sid_disp"].append(sid_disp)  # 표시용('#' 반영)
+                        acc["wid"].append("+".join(str(x) for x in g["wids"]))
+                        acc["ant"].append(" + ".join(x for x in g["forms"] if x))
+                        acc["typ"].append(" + ".join(t for t in g["types"] if t))
+                        acc["rest"].append(rest_form or "")
+
+                def _join_groups(vals: List[str]) -> str:
+                    merged = [v for v in vals if (v or v == "#")]
+                    return " / ".join(merged) if merged else ""
+
+                for row_wid, acc in za_by_row.items():
+                    acc["sid"] = _join_groups(acc["sid"])
+                    acc["sid_disp"] = _join_groups(acc["sid_disp"])
+                    acc["wid"] = _join_groups(acc["wid"])
+                    acc["ant"] = _join_groups(acc["ant"])
+                    acc["typ"] = _join_groups(acc["typ"])
+                    acc["rest"] = _join_groups(acc["rest"])
 
                 # ----- sentence-level memo string -----
                 sentence_memo_all = _join([txt for arr in memos_by_row.values() for txt in arr])
@@ -318,15 +358,12 @@ def jsons_to_wsd_excel(
                     srl_label = cell.get("label", "")
                     srl_plemma = cell.get("pred", "")
 
-                    if wid in za_by_wid:
-                        tuples = za_by_wid[wid]
-                        ant_sen_id = " / ".join([t[0] for t in tuples if t[0]])
-                        ant_word_id = " / ".join([t[1] for t in tuples if t[1]])
-                        ant_form = " / ".join([t[2] for t in tuples if t[2]])
-                        restored_form = " / ".join([t[3] for t in tuples if t[3]])
-                        restored_type = " / ".join([t[4] for t in tuples if t[4]])
-                    else:
-                        ant_sen_id = ant_word_id = ant_form = restored_form = restored_type = ""
+                    zr = za_by_row.get(wid, {})
+                    ant_sen_id = zr.get("sid_disp", "")
+                    ant_word_id = zr.get("wid", "")
+                    ant_form = zr.get("ant", "")
+                    restored_form = zr.get("rest", "")
+                    restored_type = zr.get("typ", "")
 
                     excel_rows.append(
                         {
