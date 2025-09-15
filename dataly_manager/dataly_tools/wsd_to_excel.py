@@ -165,50 +165,57 @@ def jsons_to_wsd_excel(
                 dp_by_wordid = {str(dp.get("word_id")): dp for dp in dp_list}
 
                 # ----- SRL maps -----
-                srl_span_by_wid: Dict[str, List[str]] = {}
-                srl_label_by_wid: Dict[str, List[str]] = {}
-                srl_predlemma_by_wid: Dict[str, List[str]] = {}
+                # ----- SRL (GUI와 동일: 인자 span은 '마지막 word_id' 행에만 표기, span은 wid 나열) -----
+                srl_by_wid: Dict[str, Dict[str, str]] = {}
+                seen_keys: set = set()
 
                 for frame in srl_list:
                     preds = frame.get("predicate", []) or []
-                    args = frame.get("argument", []) or []
+                    pred_lemma = ""
+                    pred_cell = ""  # 표시용 예: "10/체결하다"
+                    if preds:
+                        p0 = preds[0]
+                        pred_lemma = str(p0.get("lemma", "") or "")
+                        pw = str(p0.get("word_id", "")).strip()
+                        # GUI 로직과 맞춤: word_id와 lemma가 있으면 "id/lemma", 아니면 있는 값만
+                        pred_cell = f"{pw}/{pred_lemma}" if pw.isdigit() and pred_lemma else (pw or pred_lemma)
 
-                    # predicate 디스크립터들 (word_id/lemma)
-                    pred_descs: List[str] = []
-                    for p in preds:
-                        p_wid = p.get("word_id")
-                        lemma = p.get("lemma") or p.get("form") or ""
-                        if p_wid is not None:
-                            pred_descs.append(f"{p_wid}/{str(lemma).strip()}")
-                        elif lemma:
-                            pred_descs.append(str(lemma).strip())
+                    for arg in (frame.get("argument", []) or []):
+                        wids = arg.get("word_id", [])
+                        if isinstance(wids, int):
+                            wids = [wids]
+                        elif not isinstance(wids, list):
+                            wids = [wids] if wids else []
 
-                    # argument 의 word_id를 각 단어행에 연결
-                    for arg in args:
-                        label = str(arg.get("label", "")).strip()
-                        wids = arg.get("word_id")
+                        # 정수 wid만 모아 정렬/중복제거
+                        span_sorted = sorted({int(x) for x in wids if str(x).isdigit()})
+                        if not span_sorted:
+                            continue
 
-                        if isinstance(wids, list):
-                            wid_list = [str(w) for w in wids if w not in (None, "")]
-                        elif wids in (None, ""):
-                            wid_list = []
-                        else:
-                            wid_list = [str(wids)]
+                        # GUI와 동일한 표시: ", "로 조인 (예: "3, 4, 5")
+                        span_str = ", ".join(str(x) for x in span_sorted)
+                        label = str(arg.get("label", "") or "")
 
-                        for wid in wid_list:
-                            srl_span_by_wid.setdefault(wid, []).append(wid)  # 숫자 id 기록
-                            if label:
-                                srl_label_by_wid.setdefault(wid, []).append(label)
-                            if pred_descs:
-                                srl_predlemma_by_wid.setdefault(wid, []).extend(pred_descs)
+                        # 중복 방지
+                        key = (tuple(span_sorted), label, pred_lemma)
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
 
-                # uniq join
-                for wid in list(srl_span_by_wid.keys()):
-                    srl_span_by_wid[wid] = [_uniq_join(srl_span_by_wid[wid])]
-                for wid in list(srl_label_by_wid.keys()):
-                    srl_label_by_wid[wid] = [_uniq_join(srl_label_by_wid[wid])]
-                for wid in list(srl_predlemma_by_wid.keys()):
-                    srl_predlemma_by_wid[wid] = [_uniq_join(srl_predlemma_by_wid[wid])]
+                        # 마지막 토큰 행에만 기록
+                        target_wid = str(max(span_sorted))
+                        cell = srl_by_wid.setdefault(target_wid, {"span": "", "label": "", "pred": ""})
+
+                        # 여러 인자/프레임이 같은 행에 겹치면 " / "로 구분
+                        cell["span"] = (cell["span"] + " / " if cell["span"] else "") + span_str
+                        cell["label"] = (cell["label"] + " / " if cell["label"] else "") + label
+                        if pred_cell:
+                            if cell["pred"]:
+                                # 같은 pred_cell 중복 연결 방지
+                                if pred_cell not in cell["pred"].split(" / "):
+                                    cell["pred"] += " / " + pred_cell
+                            else:
+                                cell["pred"] = pred_cell
 
                 # ----- ZA map -----
                 # ZA_argument 기준: 해당 word_id 를 가진 단어행에 아래 필드 노출
@@ -277,9 +284,10 @@ def jsons_to_wsd_excel(
                         )
 
                     # SRL/ZA
-                    srl_span = (srl_span_by_wid.get(wid) or [""])[0]
-                    srl_label = (srl_label_by_wid.get(wid) or [""])[0]
-                    srl_plemma = (srl_predlemma_by_wid.get(wid) or [""])[0]
+                    cell = srl_by_wid.get(wid, {})
+                    srl_span = cell.get("span", "")
+                    srl_label = cell.get("label", "")
+                    srl_plemma = cell.get("pred", "")
 
                     if wid in za_by_wid:
                         tuples = za_by_wid[wid]
