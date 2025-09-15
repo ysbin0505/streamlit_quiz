@@ -37,7 +37,7 @@ tabs = st.tabs([
     "🏠 홈",
     "📊 표 변환 (JSON→Excel)",
     "🖼️ 사진 변환 (JSON→Excel)",
-    "📄 WSD 변환 (JSON→Excel)"
+    "📄 SRL_ZA 변환 (JSON→Excel)"
 ])
 
 # 홈 - home_ui.py 사용
@@ -62,4 +62,12 @@ st.markdown("""
 문의: 검증 엔지니어 | Powered by Streamlit<br>
 Copyright &copy; 2025. All rights reserved.
 </div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* 2번째, 4번째 탭 버튼 숨김 */
+.stTabs [data-baseweb="tab-list"] button:nth-child(2),
+.stTabs [data-baseweb="tab-list"] button:nth-child(4) { display: none !important; }
+</style>
 """, unsafe_allow_html=True)
