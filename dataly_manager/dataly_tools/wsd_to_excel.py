@@ -320,11 +320,11 @@ def jsons_to_wsd_excel(
 
                     if wid in za_by_wid:
                         tuples = za_by_wid[wid]
-                        ant_sen_id = " + ".join([t[0] for t in tuples if t[0]])
-                        ant_word_id = " + ".join([t[1] for t in tuples if t[1]])
-                        ant_form = " + ".join([t[2] for t in tuples if t[2]])
-                        restored_form = " + ".join([t[3] for t in tuples if t[3]])
-                        restored_type = " + ".join([t[4] for t in tuples if t[4]])
+                        ant_sen_id = " / ".join([t[0] for t in tuples if t[0]])
+                        ant_word_id = " / ".join([t[1] for t in tuples if t[1]])
+                        ant_form = " / ".join([t[2] for t in tuples if t[2]])
+                        restored_form = " / ".join([t[3] for t in tuples if t[3]])
+                        restored_type = " / ".join([t[4] for t in tuples if t[4]])
                     else:
                         ant_sen_id = ant_word_id = ant_form = restored_form = restored_type = ""
 
