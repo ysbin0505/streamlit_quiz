@@ -217,32 +217,61 @@ def jsons_to_wsd_excel(
                             else:
                                 cell["pred"] = pred_cell
 
-                # ----- ZA map -----
-                # ZA_argument 기준: 해당 word_id 를 가진 단어행에 아래 필드 노출
-                # ant_* : ZA_argument 에서, restored_* : antecedent[] 집합
+                # ----- ZA map (antecedent 기준으로 각 wid 행에 기록) -----
                 za_by_wid: Dict[str, List[tuple]] = {}
+
                 for item in za_list:
                     za_arg = item.get("ZA_argument") or {}
-                    z_form = str(za_arg.get("form", "")).strip()
-                    z_sid = _short_sid(str(za_arg.get("sentence_id", "")).strip())
-                    z_wid = za_arg.get("word_id")
-
-                    if isinstance(z_wid, list):
-                        z_wid_str = (
-                            str(z_wid[0]) if z_wid and z_wid[0] not in (None, "", "#") else None
-                        )
-                    else:
-                        z_wid_str = str(z_wid) if z_wid not in (None, "", "#") else None
+                    rest_form = str(za_arg.get("form", "")).strip()
+                    rest_type = str(za_arg.get("type", "")).strip()
 
                     ants = item.get("antecedent", []) or []
-                    ant_forms = [str(a.get("form", "")).strip() for a in ants if isinstance(a, dict)]
-                    ant_types = [str(a.get("type", "")).strip() for a in ants if isinstance(a, dict)]
-                    restored_form = " + ".join([x for x in ant_forms if x])
-                    restored_type = " + ".join([x for x in ant_types if x])
+                    ant_sids, ant_wids, ant_forms = [], [], []
 
-                    if z_wid_str:
-                        za_by_wid.setdefault(z_wid_str, []).append(
-                            (z_sid, z_wid_str, z_form, restored_form, restored_type)
+                    for a in ants:
+                        # sentence_id 꼬리만 추출
+                        sid_tail = _short_sid(str(a.get("sentence_id", "")).strip())
+                        if sid_tail:
+                            ant_sids.append(sid_tail)
+
+                        # antecedent.word_id (단일/리스트 모두 처리)
+                        w = a.get("word_id")
+                        if isinstance(w, list):
+                            for x in w:
+                                s = str(x).strip()
+                                if s.isdigit():
+                                    ant_wids.append(s)
+                        else:
+                            s = str(w).strip()
+                            if s.isdigit():
+                                ant_wids.append(s)
+
+                        # antecedent.form
+                        f = str(a.get("form", "")).strip()
+                        if f:
+                            ant_forms.append(f)
+
+                    # antecedent 정보가 하나도 없으면 스킵
+                    if not (ant_sids or ant_wids or ant_forms):
+                        continue
+
+                    # 항목 내부 중복 제거(순서 보존)
+                    def _uniq_keep_order(lst: List[str]) -> List[str]:
+                        seen, out = set(), []
+                        for v in lst:
+                            if v not in seen:
+                                seen.add(v);
+                                out.append(v)
+                        return out
+
+                    ant_sen_id_join = " + ".join(_uniq_keep_order(ant_sids))
+                    ant_word_id_join = " + ".join(_uniq_keep_order(ant_wids))
+                    ant_form_join = " + ".join(_uniq_keep_order(ant_forms))
+
+                    # 이 ZA 항목을 "모든 antecedent wid" 행에 붙인다
+                    for tw in _uniq_keep_order(ant_wids):
+                        za_by_wid.setdefault(tw, []).append(
+                            (ant_sen_id_join, ant_word_id_join, ant_form_join, rest_form, rest_type)
                         )
 
                 # ----- sentence-level memo string -----
@@ -251,7 +280,7 @@ def jsons_to_wsd_excel(
                     sentence_memo_all = _join(unmapped_buffer)
 
                 # ----- row emit -----
-                prev_word = prev_morph = prev_wsd = ""
+                # prev_word = prev_morph = prev_wsd = ""
 
                 for i, w in enumerate(word_list):
                     wid = str(w.get("id"))
@@ -319,17 +348,17 @@ def jsons_to_wsd_excel(
                             "ant_form": ant_form,
                             "restored_form": restored_form,
                             "restored_type": restored_type,
-                            "prev_word": prev_word,
-                            "prev_morph": prev_morph,
-                            "prev_WSD Form": prev_wsd,
+                            # "prev_word": prev_word,
+                            # "prev_morph": prev_morph,
+                            # "prev_WSD Form": prev_wsd,
                             "memo_count": memo_count_for_row,
                             "memos": memos_for_row,
                         }
                     )
 
-                    prev_word = word_form
-                    prev_morph = morph_str
-                    prev_wsd = wsd_str
+                    # prev_word = word_form
+                    # prev_morph = morph_str
+                    # prev_wsd = wsd_str
 
     # ---------- save ----------
     df = pd.DataFrame(excel_rows)

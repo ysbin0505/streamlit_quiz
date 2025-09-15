@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="한림대 추가">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/wsd_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/wsd_to_excel.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -97,7 +98,7 @@
       <workItem from="1757658313936" duration="3421000" />
       <workItem from="1757908964626" duration="10000" />
       <workItem from="1757913616536" duration="1131000" />
-      <workItem from="1757920219765" duration="1041000" />
+      <workItem from="1757920219765" duration="2135000" />
     </task>
     <task id="LOCAL-00001" summary="ㅇ">
       <option name="closed" value="true" />
