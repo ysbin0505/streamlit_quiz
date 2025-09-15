@@ -34,7 +34,7 @@ def render_wsd_to_excel_ui():
     with col1:
         uploaded_zip = st.file_uploader("JSON ZIP 업로드", type=["zip"])
         base_dir = st.text_input("또는 변환할 JSON **폴더 경로**", value="", placeholder="/path/to/json/dir")
-        excel_name = st.text_input("저장 파일명", value="WSD_sense_tagging_simple.xlsx")
+        excel_name = st.text_input("저장 파일명", value="SRL_ZA.xlsx")
 
     with col2:
         include_memo_sheet = st.checkbox("Memos 시트 포함", value=True)
@@ -70,9 +70,9 @@ def render_wsd_to_excel_ui():
                             zf.extractall(tmpdir)
 
                         # ZIP 파일명으로 기본 결과 이름 제안
-                        if excel_name.strip() == "WSD_sense_tagging_simple.xlsx" and uploaded_zip.name:
+                        if excel_name.strip() == "SRL_ZA.xlsx" and uploaded_zip.name:
                             base_name = os.path.splitext(os.path.basename(uploaded_zip.name))[0]
-                            excel_out_name = f"{base_name}_WSD.xlsx"
+                            excel_out_name = f"{base_name}_SRL_ZA.xlsx"
                         else:
                             excel_out_name = excel_name
 
@@ -119,8 +119,8 @@ def render_wsd_to_excel_ui():
             try:
                 import pandas as pd
                 xbio = io.BytesIO(excel_bytes)
-                df_preview = pd.read_excel(xbio, sheet_name="WSD", nrows=100)
-                st.subheader("미리보기 (WSD 시트 상위 100행)")
+                df_preview = pd.read_excel(xbio, sheet_name="SRL_ZA", nrows=100)
+                st.subheader("미리보기 (SRL_ZA 시트 상위 100행)")
                 st.dataframe(df_preview, use_container_width=True, height=400)
             except Exception:
                 st.info("미리보기를 열 수 없습니다. 파일을 직접 확인해주세요.")
