@@ -68,6 +68,6 @@ st.markdown("""
 <style>
 /* 2번째, 4번째 탭 버튼 숨김 */
 .stTabs [data-baseweb="tab-list"] button:nth-child(2),
-.stTabs [data-baseweb="tab-list"] button:nth-child(4) { display: none !important; }
+.stTabs [data-baseweb="tab-list"] button:nth-child(3) { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
