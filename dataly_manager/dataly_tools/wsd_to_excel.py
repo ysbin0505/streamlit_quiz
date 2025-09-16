@@ -11,7 +11,7 @@ __all__ = ["jsons_to_wsd_excel"]
 def jsons_to_wsd_excel(
     base_dir: str,
     excel_name: str = "WSD_sense_tagging_simple.xlsx",
-    include_memo_sheet: bool = True,
+    include_memo_sheet: bool = False,
     memo_placement: str = "by_row",  # "by_row" | "first" | "repeat"
     memo_sep: str = " | ",
 ) -> str:
@@ -388,8 +388,8 @@ def jsons_to_wsd_excel(
                             # "prev_word": prev_word,
                             # "prev_morph": prev_morph,
                             # "prev_WSD Form": prev_wsd,
-                            "memo_count": memo_count_for_row,
-                            "memos": memos_for_row,
+                            # "memo_count": memo_count_for_row,
+                            # "memos": memos_for_row,
                         }
                     )
 
