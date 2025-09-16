@@ -403,7 +403,7 @@ def jsons_to_wsd_excel(
     if include_memo_sheet and memo_rows:
         df_memos = pd.DataFrame(memo_rows)
         with pd.ExcelWriter(excel_save_path, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="WSD")
+            df.to_excel(writer, index=False, sheet_name="srl_za")
             df_memos.to_excel(writer, index=False, sheet_name="Memos")
     else:
         df.to_excel(excel_save_path, index=False)
