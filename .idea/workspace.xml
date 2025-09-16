@@ -4,8 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="한림대 추가">
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="뭐지">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/wsd_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/wsd_to_excel.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,12 +31,12 @@
     &quot;assignee&quot;: &quot;ysbin0505&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/ysbin0505/streamlit_quiz.git",
-    "accountId": "d95e6df1-4b1b-4ca4-bd12-4abb13dff754"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/ysbin0505/streamlit_quiz.git&quot;,
+    &quot;accountId&quot;: &quot;d95e6df1-4b1b-4ca4-bd12-4abb13dff754&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
@@ -44,23 +46,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.datalyManager.executor": "Run",
-    "Python.json인코딩.executor": "Run",
-    "Python.실험.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
-    "last_opened_file_path": "/Users/data.ly/Desktop/streamlit_quiz/dataly_manager",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.datalyManager.executor&quot;: &quot;Run&quot;,
+    &quot;Python.json인코딩.executor&quot;: &quot;Run&quot;,
+    &quot;Python.실험.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/data.ly/Desktop/streamlit_quiz/dataly_manager&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/dataly_manager" />
@@ -98,14 +100,6 @@
       <workItem from="1757908964626" duration="10000" />
       <workItem from="1757913616536" duration="1131000" />
       <workItem from="1757920219765" duration="4848000" />
-    </task>
-    <task id="LOCAL-00001" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1754380066716</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1754380066716</updated>
     </task>
     <task id="LOCAL-00002" summary="ㅇ">
       <option name="closed" value="true" />
@@ -491,7 +485,15 @@
       <option name="project" value="LOCAL" />
       <updated>1757913806307</updated>
     </task>
-    <option name="localTasksCounter" value="50" />
+    <task id="LOCAL-00050" summary="뭐지">
+      <option name="closed" value="true" />
+      <created>1757987150485</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1757987150485</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -518,7 +520,8 @@
     <MESSAGE value="main 단순화~" />
     <MESSAGE value="빈 셀도 json에 반영" />
     <MESSAGE value="한림대 추가" />
-    <option name="LAST_COMMIT_MESSAGE" value="한림대 추가" />
+    <MESSAGE value="뭐지" />
+    <option name="LAST_COMMIT_MESSAGE" value="뭐지" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$datalyManager.coverage" NAME="datalyManager 커버리지 결과" MODIFIED="1756954753728" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager" />

@@ -28,7 +28,7 @@ st.markdown("""
 
 col1, col2 = st.columns([0.15, 0.85])
 with col1:
-    st.image("https://static.streamlit.io/examples/cat.jpg", width=55)
+    st.image("https://static.streamlit.io/examples/dog.jpg", width=55)
 with col2:
     st.markdown('<div class="main-title">Dataly Manager</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-desc">업무 자동화, 평가 데이터 변환, 관리, 수합 웹앱</div>', unsafe_allow_html=True)
