@@ -2,22 +2,18 @@
 from __future__ import annotations
 
 """
-SRL argument 정리 엔진 (CSV 출력/옵션 없음, 엑셀 리포트용 데이터만 반환)
+SRL argument 정리 엔진 (CSV 없음, Excel 리포트용 데이터만 반환)
 
 규칙
 - argument.label 이 비어 있고(없음/None/공백) AND
-  argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
+  해당 argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
 - argument가 모두 사라지면 해당 SRL 항목 삭제
-- 파일 저장은 기본적으로 수행하지 않음(write_back=False).
-  필요 시 write_back=True 로 호출하면 원본 파일을 덮어씀(임시 폴더에서만 권장).
 
-반환값
-{
-  "total_files": int,
-  "changed_files": int,
-  "skipped_files": int,
-  "log_rows": List[List[str]],  # Excel 'Log' 시트로 사용
-}
+호출
+- srl_argument_cleanup(in_path, write_back=True/False, progress_cb=None)
+  - write_back=True 이면 실제 JSON 파일을 덮어씁니다(권장: 임시폴더에서만 사용).
+- make_excel_report(result) → bytes
+  - Summary/Log 시트가 들어있는 단일 xlsx 바이트를 반환합니다.
 """
 
 import io
@@ -228,8 +224,8 @@ def srl_argument_cleanup(
     progress_cb: Optional[Callable[[int, int, Path], None]] = None,
 ) -> Dict[str, Any]:
     """
-    in_path(파일/폴더) 내 JSON을 정리. 파일 저장(write_back)은 기본 False.
-    Excel 생성을 위해 log_rows를 함께 반환.
+    in_path(파일/폴더) 내 JSON을 정리.
+    write_back=True 이면 실제 파일을 덮어씁니다(임시폴더에서 사용할 것).
     """
     p_in = Path(in_path)
     if not p_in.exists():
@@ -239,6 +235,7 @@ def srl_argument_cleanup(
 
     log_rows: List[List[str]] = [["file", "sentence_id", "predicate_form", "argument_form", "action"]]
     changed_cnt, skipped_cnt = 0, 0
+    changed_files: List[str] = []
     total = len(files)
 
     for idx, f in enumerate(files, start=1):
@@ -255,11 +252,11 @@ def srl_argument_cleanup(
         changed = _process_json_obj(obj, f, log_rows)
         if changed:
             changed_cnt += 1
+            changed_files.append(str(f))
             if write_back:
                 try:
                     _save_json(obj, f)
                 except Exception as e:
-                    # 저장 실패만 로그에 남기고 계속
                     log_rows.append([str(f), "", "", "", f"save_failed: {e}"])
         else:
             skipped_cnt += 1
@@ -268,14 +265,14 @@ def srl_argument_cleanup(
         "total_files": total,
         "changed_files": changed_cnt,
         "skipped_files": skipped_cnt,
+        "changed_files_list": changed_files,
         "log_rows": log_rows,
     }
 
 
 def make_excel_report(result: Dict[str, Any]) -> bytes:
     """
-    결과 요약/로그를 단일 xlsx 바이트로 변환.
-    시트: Summary, Log
+    결과 요약/로그를 단일 xlsx 바이트로 변환 (시트: Summary, Log)
     """
     import pandas as pd
 
