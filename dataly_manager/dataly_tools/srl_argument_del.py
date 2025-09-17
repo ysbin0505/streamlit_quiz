@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-SRL argument 정리 엔진 (CSV 없음, Excel 리포트용 데이터만 반환)
+SRL argument 정리 엔진 (CSV 없음)
 
 규칙
 - argument.label 이 비어 있고(없음/None/공백) AND
@@ -11,7 +11,7 @@ SRL argument 정리 엔진 (CSV 없음, Excel 리포트용 데이터만 반환)
 
 호출
 - srl_argument_cleanup(in_path, write_back=True/False, progress_cb=None)
-  - write_back=True 이면 실제 JSON 파일을 덮어씁니다(권장: 임시폴더에서만 사용).
+  - write_back=True 이면 실제 JSON 파일을 덮어씁니다(임시폴더에서 사용할 것).
 - make_excel_report(result) → bytes
   - Summary/Log 시트가 들어있는 단일 xlsx 바이트를 반환합니다.
 """

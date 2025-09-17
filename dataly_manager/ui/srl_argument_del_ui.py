@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 """
-ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) → 
-1) 정리된 JSON ZIP 다운로드
-2) 요약 엑셀(xlsx) 다운로드
+ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) →
+- 정리된 JSON + 결과 엑셀을 하나의 ZIP으로 패키징하여 단일 다운로드 제공
 """
 
 import io
@@ -27,22 +26,29 @@ from dataly_manager.dataly_tools.srl_argument_del import (
 )
 
 
-def _zip_jsons(dir_path: Path) -> bytes:
+def _zip_jsons_and_excel(dir_path: Path, excel_bytes: bytes, excel_name: str = "srl_cleanup_result.xlsx") -> bytes:
     """
-    dir_path 아래의 모든 *.json 파일만 보존 경로로 ZIP으로 묶어 메모리 바이트로 반환.
+    dir_path 아래의 모든 *.json 파일과 엑셀 바이트를 하나의 ZIP으로 묶어 반환.
+    ZIP 루트:
+      - cleaned_jsons/...(원래 폴더 구조 유지)
+      - srl_cleanup_result.xlsx
     """
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # 엑셀 리포트
+        zf.writestr(excel_name, excel_bytes)
+        # JSON들
         for p in dir_path.rglob("*.json"):
             if p.is_file():
-                zf.write(p, arcname=str(p.relative_to(dir_path)))
+                arc = Path("cleaned_jsons") / p.relative_to(dir_path)
+                zf.write(p, arcname=str(arc))
     mem.seek(0)
     return mem.getvalue()
 
 
 def render_srl_argument_del_ui():
-    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → JSON ZIP + Excel)")
-    st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 해당 argument를 삭제, 모든 argument가 사라지면 SRL 항목을 삭제합니다.")
+    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → 통합 ZIP: JSON + Excel)")
+    st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 argument 삭제, 모든 argument가 사라지면 SRL 항목 삭제합니다.")
 
     up = st.file_uploader("JSON 파일들이 들어있는 ZIP을 업로드하세요", type=["zip"])
     run = st.button("실행", type="primary", use_container_width=True)
@@ -63,7 +69,7 @@ def render_srl_argument_del_ui():
                 st.error(f"ZIP 해제 실패: {e}")
                 st.stop()
 
-            # 2) 정리 수행 (write_back=True → 해제된 JSON에 바로 적용)
+            # 2) 정리 수행 (임시폴더에 바로 적용)
             prog = st.progress(0, text="처리 시작…")
 
             def _cb(cur, total, path):
@@ -73,33 +79,27 @@ def render_srl_argument_del_ui():
             result = srl_argument_cleanup(in_path=tdir, write_back=True, progress_cb=_cb)
             prog.progress(1.0, text="완료")
 
-            # 3) 결과 메트릭
-            c1, c2, c3 = st.columns(3)
-            c1.metric("총 파일", result["total_files"])
-            c2.metric("변경된 파일", result["changed_files"])
-            c3.metric("변경 없음/스킵", result["skipped_files"])
+            # 3) 결과 엑셀 생성
+            xlsx_bytes = make_excel_report(result)
 
-            # 4) 정리된 JSON ZIP 다운로드
-            cleaned_zip_bytes = _zip_jsons(tdir)
+            # 4) 통합 ZIP(정리된 JSON + 결과 엑셀) 생성
+            bundle_zip = _zip_jsons_and_excel(tdir, xlsx_bytes, excel_name="srl_cleanup_result.xlsx")
+
+            # 5) 다운로드(단일 파일)
             st.download_button(
-                label="정리된 JSON ZIP 다운로드 (srl_cleaned_json.zip)",
-                data=cleaned_zip_bytes,
-                file_name="srl_cleaned_json.zip",
+                label="통합 ZIP 다운로드 (srl_cleaned_json_and_report.zip)",
+                data=bundle_zip,
+                file_name="srl_cleaned_json_and_report.zip",
                 mime="application/zip",
                 use_container_width=True,
             )
 
-            # 5) 결과 엑셀 다운로드
-            xlsx_bytes = make_excel_report(result)
-            st.download_button(
-                label="결과 엑셀 다운로드 (srl_cleanup_result.xlsx)",
-                data=xlsx_bytes,
-                file_name="srl_cleanup_result.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
+            # 6) 간단 메트릭/로그 미리보기
+            col1, col2, col3 = st.columns(3)
+            col1.metric("총 파일", result["total_files"])
+            col2.metric("변경된 파일", result["changed_files"])
+            col3.metric("변경 없음/스킵", result["skipped_files"])
 
-            # 6) 로그 미리보기(상위 50행)
             with st.expander("로그 미리보기 (상위 50행)"):
                 rows = result.get("log_rows") or []
                 head = rows[:51]  # header + 50
