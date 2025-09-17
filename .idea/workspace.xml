@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="추가">
-      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/srl_argument_del.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/srl_argument_del.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -99,46 +99,6 @@
       <workItem from="1757908964626" duration="10000" />
       <workItem from="1757913616536" duration="1131000" />
       <workItem from="1757920219765" duration="4848000" />
-    </task>
-    <task id="LOCAL-00008" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1754529769202</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1754529769202</updated>
-    </task>
-    <task id="LOCAL-00009" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1756339505124</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1756339505124</updated>
-    </task>
-    <task id="LOCAL-00010" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1756339981117</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1756339981117</updated>
-    </task>
-    <task id="LOCAL-00011" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1756341251087</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1756341251087</updated>
-    </task>
-    <task id="LOCAL-00012" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1756364952565</created>
-      <option name="number" value="00012" />
-      <option name="presentableId" value="LOCAL-00012" />
-      <option name="project" value="LOCAL" />
-      <updated>1756364952565</updated>
     </task>
     <task id="LOCAL-00013" summary="표 - 반영 추가">
       <option name="closed" value="true" />
@@ -492,7 +452,47 @@
       <option name="project" value="LOCAL" />
       <updated>1758069483765</updated>
     </task>
-    <option name="localTasksCounter" value="57" />
+    <task id="LOCAL-00057" summary="추가">
+      <option name="closed" value="true" />
+      <created>1758069657079</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1758069657079</updated>
+    </task>
+    <task id="LOCAL-00058" summary="추가">
+      <option name="closed" value="true" />
+      <created>1758069904888</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1758069904888</updated>
+    </task>
+    <task id="LOCAL-00059" summary="추가">
+      <option name="closed" value="true" />
+      <created>1758070041994</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1758070041994</updated>
+    </task>
+    <task id="LOCAL-00060" summary="추가">
+      <option name="closed" value="true" />
+      <created>1758070068156</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1758070068156</updated>
+    </task>
+    <task id="LOCAL-00061" summary="추가">
+      <option name="closed" value="true" />
+      <created>1758070365798</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1758070365798</updated>
+    </task>
+    <option name="localTasksCounter" value="62" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

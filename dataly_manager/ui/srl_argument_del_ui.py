@@ -1,11 +1,12 @@
+# dataly_manager/ui/srl_argument_del_ui.py
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
 """
 ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) →
-- 업로드 ZIP의 폴더 구조를 그대로 보존하여, '적용된 JSON만' ZIP으로 단일 다운로드 제공
-- 엑셀 파일은 만들지 않음 / 포함하지 않음
-- 버튼 사라짐 방지를 위해 st.session_state 사용
+- 업로드 ZIP의 폴더 구조를 그대로 보존하여 '적용된 JSON만' ZIP으로 단일 다운로드 제공
+- 엑셀 파일은 생성/포함하지 않음
+- 세션 키 안전 초기화로 KeyError 방지
 """
 
 import io
@@ -23,15 +24,8 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from dataly_manager.dataly_tools.srl_argument_del import (
-    srl_argument_cleanup,   # 엑셀 생성 함수는 사용하지 않습니다.
+    srl_argument_cleanup,   # 엑셀은 사용하지 않음
 )
-
-# ---------------- Session State 초기화 ----------------
-if "srl_json_zip_bytes" not in st.session_state:
-    st.session_state["srl_json_zip_bytes"] = None   # bytes
-    st.session_state["srl_json_zip_name"] = "srl_cleaned_json.zip"
-    st.session_state["srl_metrics"] = None          # dict
-    st.session_state["srl_log_preview"] = None      # str
 
 
 def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
@@ -43,7 +37,6 @@ def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
     with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for p in dir_path.rglob("*.json"):
             if p.is_file():
-                # 업로드 ZIP의 폴더 구조를 그대로 유지
                 zf.write(p, arcname=str(p.relative_to(dir_path)))
     mem.seek(0)
     return mem.getvalue()
@@ -52,6 +45,12 @@ def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
 def render_srl_argument_del_ui():
     st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → 적용된 JSON만 ZIP으로 다운로드)")
     st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 argument 삭제, 모든 argument가 사라지면 SRL 항목 삭제합니다. 엑셀은 생성/포함하지 않습니다.")
+
+    # ---------------- 세션 키 안전 초기화 ----------------
+    st.session_state.setdefault("srl_json_zip_bytes", None)   # bytes
+    st.session_state.setdefault("srl_json_zip_name", "srl_cleaned_json.zip")
+    st.session_state.setdefault("srl_metrics", None)          # dict
+    st.session_state.setdefault("srl_log_preview", None)      # str
 
     # 업로더 + 실행/초기화
     up = st.file_uploader("JSON 파일들이 들어있는 ZIP을 업로드하세요", type=["zip"], key="srl_zip_uploader")
@@ -110,20 +109,21 @@ def render_srl_argument_del_ui():
             st.success("처리가 완료되었습니다. 아래에서 ZIP을 다운로드하세요.")
 
     # ---------------- 결과 표시(세션 기반, 항상 렌더) ----------------
-    if st.session_state["srl_json_zip_bytes"] is not None:
+    zip_bytes = st.session_state.get("srl_json_zip_bytes")
+    if zip_bytes is not None:
         st.download_button(
             label="정리된 JSON ZIP 다운로드",
-            data=st.session_state["srl_json_zip_bytes"],
-            file_name=st.session_state["srl_json_zip_name"],
+            data=zip_bytes,
+            file_name=st.session_state.get("srl_json_zip_name", "srl_cleaned_json.zip"),
             mime="application/zip",
             use_container_width=True,
         )
 
-        m = st.session_state["srl_metrics"] or {}
+        m = st.session_state.get("srl_metrics") or {}
         col1, col2, col3 = st.columns(3)
         col1.metric("총 파일", m.get("total_files", 0))
         col2.metric("변경된 파일", m.get("changed_files", 0))
         col3.metric("변경 없음/스킵", m.get("skipped_files", 0))
 
         with st.expander("로그 미리보기 (상위 50행)"):
-            st.code(st.session_state["srl_log_preview"] or "(로그 없음)", language="text")
+            st.code(st.session_state.get("srl_log_preview") or "(로그 없음)", language="text")
