@@ -1,4 +1,3 @@
-# dataly_manager/ui/srl_argument_del_ui.py
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
@@ -6,7 +5,7 @@ from __future__ import annotations
 ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) →
 - 업로드 ZIP의 폴더 구조를 그대로 보존하여 '적용된 JSON만' ZIP으로 단일 다운로드 제공
 - 엑셀 파일은 생성/포함하지 않음
-- 세션 키 안전 초기화로 KeyError 방지
+- 세션 키 안전 초기화 + 업로드 ZIP 이름에 _cleaned 자동 부여
 """
 
 import io
@@ -43,12 +42,12 @@ def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
 
 
 def render_srl_argument_del_ui():
-    st.markdown("### 🧹 SRL 불필요 값 삭제")
+    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → 적용된 JSON만 ZIP으로 다운로드)")
     st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 argument 삭제, 모든 argument가 사라지면 SRL 항목 삭제합니다. 엑셀은 생성/포함하지 않습니다.")
 
     # ---------------- 세션 키 안전 초기화 ----------------
     st.session_state.setdefault("srl_json_zip_bytes", None)   # bytes
-    st.session_state.setdefault("srl_json_zip_name", "srl_cleaned_json.zip")
+    st.session_state.setdefault("srl_json_zip_name", None)    # 업로드 파일명 기반으로 run 시 설정
     st.session_state.setdefault("srl_metrics", None)          # dict
     st.session_state.setdefault("srl_log_preview", None)      # str
 
@@ -60,6 +59,7 @@ def render_srl_argument_del_ui():
 
     if reset:
         st.session_state["srl_json_zip_bytes"] = None
+        st.session_state["srl_json_zip_name"] = None
         st.session_state["srl_metrics"] = None
         st.session_state["srl_log_preview"] = None
         st.success("상태를 초기화했습니다.")
@@ -93,9 +93,14 @@ def render_srl_argument_del_ui():
             # 3) 적용된 JSON만 폴더 구조 그대로 ZIP으로 패키징
             cleaned_zip = _zip_jsons_keep_structure(tdir)
 
-            # 4) 세션에 저장(재실행에도 다운로드 버튼 유지)
+            # 4) 다운로드 파일명: 업로드 ZIP 이름에 _cleaned 접미
+            orig = getattr(up, "name", "") or "upload.zip"
+            base = Path(orig).stem                  # "data.zip" -> "data"
+            zip_out_name = f"{base}_cleaned.zip"    # -> "data_cleaned.zip"
+
+            # 5) 세션에 저장(재실행에도 다운로드 버튼 유지)
             st.session_state["srl_json_zip_bytes"] = cleaned_zip
-            st.session_state["srl_json_zip_name"] = "srl_cleaned_json.zip"
+            st.session_state["srl_json_zip_name"] = zip_out_name
             st.session_state["srl_metrics"] = {
                 "total_files": result["total_files"],
                 "changed_files": result["changed_files"],
@@ -114,7 +119,7 @@ def render_srl_argument_del_ui():
         st.download_button(
             label="정리된 JSON ZIP 다운로드",
             data=zip_bytes,
-            file_name=st.session_state.get("srl_json_zip_name", "srl_cleaned_json.zip"),
+            file_name=st.session_state.get("srl_json_zip_name") or "srl_cleaned_json.zip",
             mime="application/zip",
             use_container_width=True,
         )
