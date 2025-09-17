@@ -14,6 +14,8 @@ from dataly_manager.ui.table_to_excel_ui import render_table_to_excel
 from dataly_manager.ui.photo_to_excel_ui import render_photo_to_excel
 from dataly_manager.ui.home_ui import render_home_ui
 from dataly_manager.ui.wsd_to_excel_ui import render_wsd_to_excel_ui
+from dataly_manager.ui.srl_argument_del_ui import render_srl_argument_del_ui
+
 
 st.markdown("""
     <style>
@@ -37,6 +39,7 @@ tabs = st.tabs([
     "🏠 홈",
     "📊 표 변환 (JSON→Excel)",
     "🖼️ 사진 변환 (JSON→Excel)",
+    "🧹 SRL 인자 정리 (VX/빈 라벨 삭제)",
     "📄 SRL_ZA 변환 (JSON→Excel)"
 ])
 
@@ -52,8 +55,12 @@ with tabs[1]:
 with tabs[2]:
     render_photo_to_excel()
 
-# ✅ WSD/DP/SRL/ZA → 엑셀 변환
+# 새 탭: SRL 인자 정리
 with tabs[3]:
+    render_srl_argument_del_ui()
+
+# ✅ WSD/DP/SRL/ZA → 엑셀 변환
+with tabs[4]:
     render_wsd_to_excel_ui()
 
 st.markdown("""

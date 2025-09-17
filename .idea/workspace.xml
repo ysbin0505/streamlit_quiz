@@ -4,10 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="뭐지">
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="시트이름 수정">
+      <change afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/srl_argument_del.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/dataly_manager/ui/srl_argument_del_ui.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/datalyManager.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/datalyManager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/wsd_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/wsd_to_excel.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,23 +47,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.datalyManager.executor&quot;: &quot;Run&quot;,
-    &quot;Python.json인코딩.executor&quot;: &quot;Run&quot;,
-    &quot;Python.실험.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/data.ly/Desktop/streamlit_quiz/dataly_manager&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.datalyManager.executor": "Run",
+    "Python.json인코딩.executor": "Run",
+    "Python.srl_argument_del.executor": "Run",
+    "Python.실험.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "/Users/data.ly/Desktop/streamlit_quiz/dataly_manager",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/dataly_manager" />
@@ -100,30 +102,6 @@
       <workItem from="1757908964626" duration="10000" />
       <workItem from="1757913616536" duration="1131000" />
       <workItem from="1757920219765" duration="4848000" />
-    </task>
-    <task id="LOCAL-00002" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1754380199763</created>
-      <option name="number" value="00002" />
-      <option name="presentableId" value="LOCAL-00002" />
-      <option name="project" value="LOCAL" />
-      <updated>1754380199763</updated>
-    </task>
-    <task id="LOCAL-00003" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1754528418144</created>
-      <option name="number" value="00003" />
-      <option name="presentableId" value="LOCAL-00003" />
-      <option name="project" value="LOCAL" />
-      <updated>1754528418144</updated>
-    </task>
-    <task id="LOCAL-00004" summary="ㅇ">
-      <option name="closed" value="true" />
-      <created>1754528580728</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1754528580728</updated>
     </task>
     <task id="LOCAL-00005" summary="ㅇ">
       <option name="closed" value="true" />
@@ -493,7 +471,31 @@
       <option name="project" value="LOCAL" />
       <updated>1757987150485</updated>
     </task>
-    <option name="localTasksCounter" value="51" />
+    <task id="LOCAL-00051" summary="시트이름 수정">
+      <option name="closed" value="true" />
+      <created>1757989938608</created>
+      <option name="number" value="00051" />
+      <option name="presentableId" value="LOCAL-00051" />
+      <option name="project" value="LOCAL" />
+      <updated>1757989938608</updated>
+    </task>
+    <task id="LOCAL-00052" summary="시트이름 수정">
+      <option name="closed" value="true" />
+      <created>1757990277271</created>
+      <option name="number" value="00052" />
+      <option name="presentableId" value="LOCAL-00052" />
+      <option name="project" value="LOCAL" />
+      <updated>1757990277271</updated>
+    </task>
+    <task id="LOCAL-00053" summary="시트이름 수정">
+      <option name="closed" value="true" />
+      <created>1757991074787</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1757991074787</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -521,9 +523,11 @@
     <MESSAGE value="빈 셀도 json에 반영" />
     <MESSAGE value="한림대 추가" />
     <MESSAGE value="뭐지" />
-    <option name="LAST_COMMIT_MESSAGE" value="뭐지" />
+    <MESSAGE value="시트이름 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="시트이름 수정" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/streamlit_quiz$srl_argument_del.coverage" NAME="srl_argument_del 커버리지 결과" MODIFIED="1758067388147" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager/dataly_tools" />
     <SUITE FILE_PATH="coverage/streamlit_quiz$datalyManager.coverage" NAME="datalyManager 커버리지 결과" MODIFIED="1756954753728" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager" />
     <SUITE FILE_PATH="coverage/streamlit_quiz$.coverage" NAME="실험 커버리지 결과" MODIFIED="1754528844554" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/streamlit_quiz$json.coverage" NAME="json인코딩 커버리지 결과" MODIFIED="1756691914280" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
