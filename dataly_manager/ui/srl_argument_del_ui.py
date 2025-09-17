@@ -1,99 +1,85 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+"""
+ZIP 업로드 → 임시폴더에 해제 → SRL argument 정리(파일 저장 없음) → Excel(xlsx) 결과 다운로드
+CSV 출력은 제공하지 않음.
+"""
+
+import io
 import os
+import zipfile
+import tempfile
 from pathlib import Path
 import streamlit as st
 
-# 패키지 루트(= dataly_manager의 부모 폴더)를 sys.path에 추가 (메인과 동일 전략)
+# 패키지 루트(= dataly_manager의 부모 폴더)를 sys.path에 추가
 import sys
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(APP_DIR)
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from dataly_manager.dataly_tools.srl_argument_del import srl_argument_cleanup
+from dataly_manager.dataly_tools.srl_argument_del import (
+    srl_argument_cleanup,
+    make_excel_report,
+)
 
 
 def render_srl_argument_del_ui():
-    st.markdown("### 🧹 SRL 인자 정리 (빈 label + VX 포함 제거)")
-    st.caption("조건: argument.label이 비어 있고, 해당 argument가 커버하는 단어들 중 morph.label == 'VX'가 하나라도 있으면 해당 argument를 삭제합니다. argument가 모두 사라지면 SRL 항목 자체를 삭제합니다.")
+    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → Excel)")
+    st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 해당 argument를 삭제합니다. 모든 argument가 사라지면 SRL 항목을 삭제합니다. 업로드 ZIP은 분석만 하고, 파일은 저장하지 않습니다.")
 
-    with st.container(border=True):
-        col1, col2 = st.columns([0.55, 0.45])
-        with col1:
-            in_path = st.text_input(
-                "입력 경로 (파일 또는 폴더)",
-                value="",
-                placeholder="/Users/you/data or /Users/you/file.json"
-            )
-            use_outdir = st.checkbox("별도 출력 디렉터리에 저장", value=False)
-            out_dir = st.text_input(
-                "출력 디렉터리 (선택)",
-                value="",
-                placeholder="/Users/you/output",
-                disabled=not use_outdir
-            )
-        with col2:
-            make_csv = st.checkbox("보고용 CSV 로그 생성", value=True)
-            report_csv = st.text_input(
-                "CSV 경로 (선택)",
-                value="srl_cleanup_VX_log.csv",
-                disabled=not make_csv
-            )
-
-        run = st.button("실행", type="primary", use_container_width=True)
+    up = st.file_uploader("JSON 파일들이 들어있는 ZIP을 업로드하세요", type=["zip"])
+    run = st.button("실행", type="primary", use_container_width=True)
 
     if run:
-        if not in_path.strip():
-            st.error("입력 경로를 입력해 주세요.")
+        if not up:
+            st.error("ZIP 파일을 업로드해 주세요.")
             st.stop()
 
-        p_in = Path(in_path.strip())
-        p_out = Path(out_dir.strip()) if (use_outdir and out_dir.strip()) else None
-        p_csv = Path(report_csv.strip()) if (make_csv and report_csv.strip()) else None
+        with tempfile.TemporaryDirectory() as td:
+            tdir = Path(td)
+            # ZIP 해제
+            try:
+                with zipfile.ZipFile(up) as zf:
+                    zf.extractall(tdir)
+            except Exception as e:
+                st.error(f"ZIP 해제 실패: {e}")
+                st.stop()
 
-        prog = st.progress(0, text="처리 시작…")
-        last_total = 1
+            prog = st.progress(0, text="처리 시작…")
 
-        def _cb(cur: int, total: int, path: Path):
-            nonlocal last_total
-            last_total = total
-            prog.progress(min(cur / max(total, 1), 1.0), text=f"[{cur}/{total}] 처리 중: {path.name}")
+            def _cb(cur, total, path):
+                # total이 0일 때 division guard
+                denom = max(total, 1)
+                prog.progress(min(cur / denom, 1.0), text=f"[{cur}/{total}] {path.name} 처리 중")
 
-        try:
-            result = srl_argument_cleanup(
-                in_path=p_in,
-                out_dir=p_out,
-                report_csv=p_csv,
-                progress_cb=_cb
+            try:
+                # 파일 저장(write_back) 없이 분석만 수행
+                result = srl_argument_cleanup(in_path=tdir, write_back=False, progress_cb=_cb)
+            finally:
+                prog.progress(1.0, text="완료")
+
+            # 결과 메트릭
+            c1, c2, c3 = st.columns(3)
+            c1.metric("총 파일", result["total_files"])
+            c2.metric("변경된 파일", result["changed_files"])
+            c3.metric("변경 없음/스킵", result["skipped_files"])
+
+            # 엑셀 생성 & 다운로드
+            xlsx_bytes = make_excel_report(result)
+            st.download_button(
+                label="결과 엑셀 다운로드 (srl_cleanup_result.xlsx)",
+                data=xlsx_bytes,
+                file_name="srl_cleanup_result.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
             )
-        except Exception as e:
-            prog.empty()
-            st.error(f"에러: {e}")
-            st.stop()
 
-        prog.progress(1.0, text="완료")
-        st.success("SRL 인자 정리가 완료되었습니다.")
-
-        colA, colB, colC = st.columns(3)
-        colA.metric("총 파일", result["total_files"])
-        colB.metric("변경된 파일", result["changed_files"])
-        colC.metric("변경 없음/스킵", result["skipped_files"])
-
-        if result.get("report_csv"):
-            st.info(f"로그 CSV: {result['report_csv']}")
-
-        with st.expander("변경된 파일 목록 보기"):
-            if result["outputs"]:
-                for item in result["outputs"]:
-                    src = Path(item["src"])
-                    dst = Path(item["dst"])
-                    st.write(f"- {src.name} → {dst}")
-            else:
-                st.write("변경된 파일이 없습니다.")
-
-        with st.expander("세부 로그 미리보기 (상위 50행)"):
-            rows = result["log_rows"][:51]  # header + 50
-            preview = "\n".join([",".join(map(str, r)) for r in rows])
-            st.code(preview, language="text")
+            # 로그 미리보기(상위 50행)
+            with st.expander("로그 미리보기 (상위 50행)"):
+                rows = result.get("log_rows") or []
+                head = rows[:51]  # header + 50
+                preview = "\n".join([",".join(map(str, r)) for r in head]) if head else "(로그 없음)"
+                st.code(preview, language="text")

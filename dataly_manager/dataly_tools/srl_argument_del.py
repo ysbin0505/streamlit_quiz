@@ -1,13 +1,32 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+"""
+SRL argument 정리 엔진 (CSV 출력/옵션 없음, 엑셀 리포트용 데이터만 반환)
+
+규칙
+- argument.label 이 비어 있고(없음/None/공백) AND
+  argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
+- argument가 모두 사라지면 해당 SRL 항목 삭제
+- 파일 저장은 기본적으로 수행하지 않음(write_back=False).
+  필요 시 write_back=True 로 호출하면 원본 파일을 덮어씀(임시 폴더에서만 권장).
+
+반환값
+{
+  "total_files": int,
+  "changed_files": int,
+  "skipped_files": int,
+  "log_rows": List[List[str]],  # Excel 'Log' 시트로 사용
+}
+"""
+
+import io
 import json
-import csv
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set, Union, Callable
 
 
-# ---------- 내부 유틸 ----------
+# ---------------- 내부 유틸 ----------------
 def _is_empty_label(arg: Dict[str, Any]) -> bool:
     if "label" not in arg:
         return True
@@ -60,8 +79,7 @@ def _arg_word_ids_from_word_id_field(arg: Dict[str, Any]) -> Set[int]:
     res: Set[int] = set()
     if "word_id" not in arg:
         return res
-    wid_val: Union[int, str, List[Any]] = arg.get("word_id")
-
+    wid_val = arg.get("word_id")
     if isinstance(wid_val, list):
         for v in wid_val:
             iv = _to_int_safe(v)
@@ -120,25 +138,14 @@ def _iter_json_files(path: Path) -> Tuple[List[Path], Optional[Path]]:
     return [], None
 
 
-def _save_json(obj: Dict[str, Any], in_file: Path, out_dir: Optional[Path], root_dir: Optional[Path]) -> Path:
-    text = json.dumps(obj, ensure_ascii=False, indent=2)
-    if out_dir is None:
-        in_file.write_text(text, encoding="utf-8")
-        return in_file
-    if root_dir and in_file.is_relative_to(root_dir):
-        rel = in_file.relative_to(root_dir)
-    else:
-        rel = in_file.name
-    out_path = out_dir / rel
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(text, encoding="utf-8")
-    return out_path
+def _save_json(obj: Dict[str, Any], in_file: Path) -> None:
+    in_file.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _process_json_obj(
     obj: Dict[str, Any],
     file_path: Path,
-    log_rows: List[List[str]]
+    log_rows: List[List[str]],
 ) -> bool:
     changed = False
     documents = obj.get("document") or []
@@ -185,7 +192,7 @@ def _process_json_obj(
                             str(sent.get("id") or ""),
                             _predicate_surface(srl),
                             str(a.get("form") or ""),
-                            "argument_removed_empty_label_with_VX"
+                            "argument_removed_empty_label_with_VX",
                         ])
                     else:
                         kept_args.append(a)
@@ -199,7 +206,7 @@ def _process_json_obj(
                         str(sent.get("id") or ""),
                         _predicate_surface(srl),
                         "",
-                        "srl_removed_no_arguments"
+                        "srl_removed_no_arguments",
                     ])
                     continue
 
@@ -214,44 +221,26 @@ def _process_json_obj(
     return changed
 
 
-# ---------- 공개 엔진 함수 ----------
+# ---------------- 공개 API ----------------
 def srl_argument_cleanup(
     in_path: Union[str, Path],
-    out_dir: Optional[Union[str, Path]] = None,
-    report_csv: Optional[Union[str, Path]] = None,
+    write_back: bool = False,
     progress_cb: Optional[Callable[[int, int, Path], None]] = None,
 ) -> Dict[str, Any]:
     """
-    SRL argument 중 (label 비어 있고) AND (VX 포함) 조건을 삭제하고,
-    argument가 비면 해당 SRL 항목 자체를 제거.
-
-    Returns:
-        {
-          "total_files": int,
-          "changed_files": int,
-          "skipped_files": int,
-          "log_rows": List[List[str]],
-          "outputs": List[{"src": Path, "dst": Path}],
-        }
+    in_path(파일/폴더) 내 JSON을 정리. 파일 저장(write_back)은 기본 False.
+    Excel 생성을 위해 log_rows를 함께 반환.
     """
     p_in = Path(in_path)
-    p_out = Path(out_dir) if out_dir else None
-    p_csv = Path(report_csv) if report_csv else None
-
     if not p_in.exists():
         raise FileNotFoundError(f"경로가 존재하지 않습니다: {p_in}")
 
-    if p_out:
-        p_out.mkdir(parents=True, exist_ok=True)
+    files, _root = _iter_json_files(p_in)
 
-    files, root = _iter_json_files(p_in)
     log_rows: List[List[str]] = [["file", "sentence_id", "predicate_form", "argument_form", "action"]]
-    outputs: List[Dict[str, Path]] = []
-
-    changed_cnt = 0
-    skipped_cnt = 0
-
+    changed_cnt, skipped_cnt = 0, 0
     total = len(files)
+
     for idx, f in enumerate(files, start=1):
         if progress_cb:
             progress_cb(idx, total, f)
@@ -263,23 +252,48 @@ def srl_argument_cleanup(
             log_rows.append([str(f), "", "", "", f"load_failed: {e}"])
             continue
 
-        if _process_json_obj(obj, f, log_rows):
-            dst = _save_json(obj, f, p_out, root)
-            outputs.append({"src": f, "dst": dst})
+        changed = _process_json_obj(obj, f, log_rows)
+        if changed:
             changed_cnt += 1
+            if write_back:
+                try:
+                    _save_json(obj, f)
+                except Exception as e:
+                    # 저장 실패만 로그에 남기고 계속
+                    log_rows.append([str(f), "", "", "", f"save_failed: {e}"])
         else:
             skipped_cnt += 1
-
-    if p_csv and len(log_rows) > 1:
-        with p_csv.open("w", newline="", encoding="utf-8") as fp:
-            writer = csv.writer(fp)
-            writer.writerows(log_rows)
 
     return {
         "total_files": total,
         "changed_files": changed_cnt,
         "skipped_files": skipped_cnt,
         "log_rows": log_rows,
-        "outputs": outputs,
-        "report_csv": str(p_csv) if p_csv else None,
     }
+
+
+def make_excel_report(result: Dict[str, Any]) -> bytes:
+    """
+    결과 요약/로그를 단일 xlsx 바이트로 변환.
+    시트: Summary, Log
+    """
+    import pandas as pd
+
+    log_rows = result.get("log_rows") or []
+    if log_rows:
+        df_log = pd.DataFrame(log_rows[1:], columns=log_rows[0])
+    else:
+        df_log = pd.DataFrame(columns=["file", "sentence_id", "predicate_form", "argument_form", "action"])
+
+    df_summary = pd.DataFrame([{
+        "total_files": result.get("total_files", 0),
+        "changed_files": result.get("changed_files", 0),
+        "skipped_files": result.get("skipped_files", 0),
+    }])
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df_summary.to_excel(w, sheet_name="Summary", index=False)
+        df_log.to_excel(w, sheet_name="Log", index=False)
+    buf.seek(0)
+    return buf.getvalue()
