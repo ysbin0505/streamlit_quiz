@@ -3,7 +3,9 @@ from __future__ import annotations
 
 """
 ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) →
-- 정리된 JSON + 결과 엑셀을 하나의 ZIP으로 패키징하여 단일 다운로드 제공
+- 업로드 ZIP의 폴더 구조를 그대로 보존하여, '적용된 JSON만' ZIP으로 단일 다운로드 제공
+- 엑셀 파일은 만들지 않음 / 포함하지 않음
+- 버튼 사라짐 방지를 위해 st.session_state 사용
 """
 
 import io
@@ -21,37 +23,47 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from dataly_manager.dataly_tools.srl_argument_del import (
-    srl_argument_cleanup,
-    make_excel_report,
+    srl_argument_cleanup,   # 엑셀 생성 함수는 사용하지 않습니다.
 )
 
+# ---------------- Session State 초기화 ----------------
+if "srl_json_zip_bytes" not in st.session_state:
+    st.session_state["srl_json_zip_bytes"] = None   # bytes
+    st.session_state["srl_json_zip_name"] = "srl_cleaned_json.zip"
+    st.session_state["srl_metrics"] = None          # dict
+    st.session_state["srl_log_preview"] = None      # str
 
-def _zip_jsons_and_excel(dir_path: Path, excel_bytes: bytes, excel_name: str = "srl_cleanup_result.xlsx") -> bytes:
+
+def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
     """
-    dir_path 아래의 모든 *.json 파일과 엑셀 바이트를 하나의 ZIP으로 묶어 반환.
-    ZIP 루트:
-      - cleaned_jsons/...(원래 폴더 구조 유지)
-      - srl_cleanup_result.xlsx
+    dir_path 아래의 모든 *.json을 원래 상대 경로(= dir_path 기준) 그대로 ZIP에 담아 반환.
+    다른 파일 형식은 포함하지 않음.
     """
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # 엑셀 리포트
-        zf.writestr(excel_name, excel_bytes)
-        # JSON들
         for p in dir_path.rglob("*.json"):
             if p.is_file():
-                arc = Path("cleaned_jsons") / p.relative_to(dir_path)
-                zf.write(p, arcname=str(arc))
+                # 업로드 ZIP의 폴더 구조를 그대로 유지
+                zf.write(p, arcname=str(p.relative_to(dir_path)))
     mem.seek(0)
     return mem.getvalue()
 
 
 def render_srl_argument_del_ui():
-    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → 통합 ZIP: JSON + Excel)")
-    st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 argument 삭제, 모든 argument가 사라지면 SRL 항목 삭제합니다.")
+    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → 적용된 JSON만 ZIP으로 다운로드)")
+    st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 argument 삭제, 모든 argument가 사라지면 SRL 항목 삭제합니다. 엑셀은 생성/포함하지 않습니다.")
 
-    up = st.file_uploader("JSON 파일들이 들어있는 ZIP을 업로드하세요", type=["zip"])
-    run = st.button("실행", type="primary", use_container_width=True)
+    # 업로더 + 실행/초기화
+    up = st.file_uploader("JSON 파일들이 들어있는 ZIP을 업로드하세요", type=["zip"], key="srl_zip_uploader")
+    col_run, col_reset = st.columns([0.6, 0.4])
+    run = col_run.button("실행", type="primary", use_container_width=True)
+    reset = col_reset.button("초기화", use_container_width=True)
+
+    if reset:
+        st.session_state["srl_json_zip_bytes"] = None
+        st.session_state["srl_metrics"] = None
+        st.session_state["srl_log_preview"] = None
+        st.success("상태를 초기화했습니다.")
 
     if run:
         if not up:
@@ -79,29 +91,39 @@ def render_srl_argument_del_ui():
             result = srl_argument_cleanup(in_path=tdir, write_back=True, progress_cb=_cb)
             prog.progress(1.0, text="완료")
 
-            # 3) 결과 엑셀 생성
-            xlsx_bytes = make_excel_report(result)
+            # 3) 적용된 JSON만 폴더 구조 그대로 ZIP으로 패키징
+            cleaned_zip = _zip_jsons_keep_structure(tdir)
 
-            # 4) 통합 ZIP(정리된 JSON + 결과 엑셀) 생성
-            bundle_zip = _zip_jsons_and_excel(tdir, xlsx_bytes, excel_name="srl_cleanup_result.xlsx")
+            # 4) 세션에 저장(재실행에도 다운로드 버튼 유지)
+            st.session_state["srl_json_zip_bytes"] = cleaned_zip
+            st.session_state["srl_json_zip_name"] = "srl_cleaned_json.zip"
+            st.session_state["srl_metrics"] = {
+                "total_files": result["total_files"],
+                "changed_files": result["changed_files"],
+                "skipped_files": result["skipped_files"],
+            }
+            rows = result.get("log_rows") or []
+            head = rows[:51]  # header + 50
+            preview = "\n".join([",".join(map(str, r)) for r in head]) if head else "(로그 없음)"
+            st.session_state["srl_log_preview"] = preview
 
-            # 5) 다운로드(단일 파일)
-            st.download_button(
-                label="통합 ZIP 다운로드 (srl_cleaned_json_and_report.zip)",
-                data=bundle_zip,
-                file_name="srl_cleaned_json_and_report.zip",
-                mime="application/zip",
-                use_container_width=True,
-            )
+            st.success("처리가 완료되었습니다. 아래에서 ZIP을 다운로드하세요.")
 
-            # 6) 간단 메트릭/로그 미리보기
-            col1, col2, col3 = st.columns(3)
-            col1.metric("총 파일", result["total_files"])
-            col2.metric("변경된 파일", result["changed_files"])
-            col3.metric("변경 없음/스킵", result["skipped_files"])
+    # ---------------- 결과 표시(세션 기반, 항상 렌더) ----------------
+    if st.session_state["srl_json_zip_bytes"] is not None:
+        st.download_button(
+            label="정리된 JSON ZIP 다운로드",
+            data=st.session_state["srl_json_zip_bytes"],
+            file_name=st.session_state["srl_json_zip_name"],
+            mime="application/zip",
+            use_container_width=True,
+        )
 
-            with st.expander("로그 미리보기 (상위 50행)"):
-                rows = result.get("log_rows") or []
-                head = rows[:51]  # header + 50
-                preview = "\n".join([",".join(map(str, r)) for r in head]) if head else "(로그 없음)"
-                st.code(preview, language="text")
+        m = st.session_state["srl_metrics"] or {}
+        col1, col2, col3 = st.columns(3)
+        col1.metric("총 파일", m.get("total_files", 0))
+        col2.metric("변경된 파일", m.get("changed_files", 0))
+        col3.metric("변경 없음/스킵", m.get("skipped_files", 0))
+
+        with st.expander("로그 미리보기 (상위 50행)"):
+            st.code(st.session_state["srl_log_preview"] or "(로그 없음)", language="text")
