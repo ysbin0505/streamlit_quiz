@@ -3,7 +3,7 @@ from __future__ import annotations
 
 """
 ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) →
-- 정리된 JSON + 결과 엑셀을 하나의 ZIP으로 패키징하여 단일 다운로드 제공
+- 정리된 JSON + 결과 엑셀을 하나의 ZIP으로 패키징하여 '단일' 다운로드만 제공
 """
 
 import io
@@ -35,7 +35,7 @@ def _zip_jsons_and_excel(dir_path: Path, excel_bytes: bytes, excel_name: str = "
     """
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # 엑셀 리포트
+        # 엑셀 리포트 파일
         zf.writestr(excel_name, excel_bytes)
         # JSON들
         for p in dir_path.rglob("*.json"):
@@ -79,29 +79,4 @@ def render_srl_argument_del_ui():
             result = srl_argument_cleanup(in_path=tdir, write_back=True, progress_cb=_cb)
             prog.progress(1.0, text="완료")
 
-            # 3) 결과 엑셀 생성
-            xlsx_bytes = make_excel_report(result)
-
-            # 4) 통합 ZIP(정리된 JSON + 결과 엑셀) 생성
-            bundle_zip = _zip_jsons_and_excel(tdir, xlsx_bytes, excel_name="srl_cleanup_result.xlsx")
-
-            # 5) 다운로드(단일 파일)
-            st.download_button(
-                label="통합 ZIP 다운로드 (srl_cleaned_json_and_report.zip)",
-                data=bundle_zip,
-                file_name="srl_cleaned_json_and_report.zip",
-                mime="application/zip",
-                use_container_width=True,
-            )
-
-            # 6) 간단 메트릭/로그 미리보기
-            col1, col2, col3 = st.columns(3)
-            col1.metric("총 파일", result["total_files"])
-            col2.metric("변경된 파일", result["changed_files"])
-            col3.metric("변경 없음/스킵", result["skipped_files"])
-
-            with st.expander("로그 미리보기 (상위 50행)"):
-                rows = result.get("log_rows") or []
-                head = rows[:51]  # header + 50
-                preview = "\n".join([",".join(map(str, r)) for r in head]) if head else "(로그 없음)"
-                st.code(preview, language="text")
+            # 3) 결과
