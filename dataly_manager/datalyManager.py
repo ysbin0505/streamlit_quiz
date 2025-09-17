@@ -39,7 +39,7 @@ tabs = st.tabs([
     "🏠 홈",
     "📊 표 변환 (JSON→Excel)",
     "🖼️ 사진 변환 (JSON→Excel)",
-    "🧹 SRL 인자 정리 (VX/빈 라벨 삭제)",
+    "🧹 SRL 불필요 값 삭제",
     "📄 SRL_ZA 변환 (JSON→Excel)"
 ])
 

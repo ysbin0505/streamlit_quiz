@@ -43,7 +43,7 @@ def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
 
 
 def render_srl_argument_del_ui():
-    st.markdown("### 🧹 SRL 인자 정리 (ZIP 업로드 → 적용된 JSON만 ZIP으로 다운로드)")
+    st.markdown("### 🧹 SRL 불필요 값 삭제")
     st.caption("규칙: argument.label이 비어 있고 해당 영역에 VX 형태소가 포함되면 argument 삭제, 모든 argument가 사라지면 SRL 항목 삭제합니다. 엑셀은 생성/포함하지 않습니다.")
 
     # ---------------- 세션 키 안전 초기화 ----------------
