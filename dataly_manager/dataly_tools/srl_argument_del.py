@@ -2,21 +2,20 @@
 from __future__ import annotations
 
 """
-SRL argument 정리 엔진 (CSV/개별 엑셀 버튼 없음)
+SRL argument 정리 엔진 (엑셀/CSV 없이 JSON만 처리)
 
 규칙
 - argument.label 이 비어 있고(없음/None/공백) AND
   해당 argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
 - argument가 모두 사라지면 해당 SRL 항목 삭제
+- 추가: argument.label의 'PTR' 표기를 'PRT'로 보정
 
 호출
 - srl_argument_cleanup(in_path, write_back=True/False, progress_cb=None)
-  - write_back=True 이면 실제 JSON 파일을 덮어씁니다(권장: 임시폴더에서 사용할 것).
-- make_excel_report(result) → bytes
-  - Summary/Log 시트가 들어있는 단일 xlsx 바이트를 반환합니다(통합 ZIP에 포함시킬 용도).
+  - write_back=True 이면 실제 JSON 파일을 덮어씁니다(임시폴더에서 사용할 것).
+  - 반환: 요약/로그(엑셀은 만들지 않음)
 """
 
-import io
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set, Union, Callable
@@ -138,12 +137,70 @@ def _save_json(obj: Dict[str, Any], in_file: Path) -> None:
     in_file.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# --------- 라벨 보정 유틸 ---------
+def _normalize_label(v: Any) -> str:
+    """라벨 비교를 위한 정규화: 문자열화 + strip + 대문자."""
+    if v is None:
+        return ""
+    return str(v).strip().upper()
+
+
+def _patch_srl_labels(doc: Dict[str, Any]) -> int:
+    """
+    document[].sentence[].SRL[].argument[].label 에서 'PTR' -> 'PRT'
+    반환: 치환 건수
+    """
+    replaced = 0
+    documents = doc.get("document", [])
+    if not isinstance(documents, list):
+        return 0
+
+    for d in documents:
+        sentences = d.get("sentence", [])
+        if not isinstance(sentences, list):
+            continue
+
+        for sent in sentences:
+            srl_list = sent.get("SRL", [])
+            if not isinstance(srl_list, list):
+                continue
+
+            for frame in srl_list:
+                args = frame.get("argument", [])
+                # argument 가 dict 단일 객체로 오는 데이터 방어
+                if isinstance(args, dict):
+                    args = [args]
+                if not isinstance(args, list):
+                    continue
+
+                for arg in args:
+                    if not isinstance(arg, dict):
+                        continue
+                    raw = arg.get("label", None)
+                    if _normalize_label(raw) == "PTR":
+                        arg["label"] = "PRT"
+                        replaced += 1
+    return replaced
+
+
 def _process_json_obj(
     obj: Dict[str, Any],
     file_path: Path,
     log_rows: List[List[str]],
 ) -> bool:
     changed = False
+
+    # 0) 파일 단위 라벨 보정(PTR -> PRT)
+    patched = _patch_srl_labels(obj)
+    if patched > 0:
+        changed = True
+        # 파일 요약 로그(치환 건수)
+        log_rows.append([
+            str(file_path), "", "", "",
+            f"label_PTR->PRT:{patched}"
+        ])
+
+    # 1) 인자 삭제 규칙 처리
     documents = obj.get("document") or []
     for doc in documents:
         sents = doc.get("sentence") or []
@@ -268,29 +325,3 @@ def srl_argument_cleanup(
         "changed_files_list": changed_files,
         "log_rows": log_rows,
     }
-
-
-def make_excel_report(result: Dict[str, Any]) -> bytes:
-    """
-    결과 요약/로그를 단일 xlsx 바이트로 변환 (시트: Summary, Log)
-    """
-    import pandas as pd
-
-    log_rows = result.get("log_rows") or []
-    if log_rows:
-        df_log = pd.DataFrame(log_rows[1:], columns=log_rows[0])
-    else:
-        df_log = pd.DataFrame(columns=["file", "sentence_id", "predicate_form", "argument_form", "action"])
-
-    df_summary = pd.DataFrame([{
-        "total_files": result.get("total_files", 0),
-        "changed_files": result.get("changed_files", 0),
-        "skipped_files": result.get("skipped_files", 0),
-    }])
-
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine="openpyxl") as w:
-        df_summary.to_excel(w, sheet_name="Summary", index=False)
-        df_log.to_excel(w, sheet_name="Log", index=False)
-    buf.seek(0)
-    return buf.getvalue()
