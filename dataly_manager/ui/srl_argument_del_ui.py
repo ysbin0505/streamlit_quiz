@@ -30,23 +30,45 @@ from dataly_manager.dataly_tools.srl_argument_del import (
 
 def _zip_jsons_keep_structure(dir_path: Path, extra_files: list[tuple[str, bytes]] | None = None) -> bytes:
     """
-    dir_path 아래의 모든 *.json을 원래 상대 경로(= dir_path 기준) 그대로 ZIP에 담아 반환.
-    extra_files: [(파일명, 바이트)] 를 ZIP 루트에 추가로 넣을 수 있음.
+    (수정본) dir_path 아래의 모든 *.json을 ZIP '최상위'에 평탄화하여 담는다.
+    - 모든 JSON 파일은 ZIP 루트에 위치 (하위 폴더 구조 제거)
+    - 파일명이 중복될 경우 '_1', '_2' ... 를 자동 덧붙여 충돌 회피
+    - extra_files: [(파일명, 바이트)] 를 ZIP 루트에 그대로 추가 (예: vx_removed_only.xlsx)
     """
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # ✅ JSON들 (상대경로 보존)
-        for p in dir_path.rglob("*.json"):
-            if p.is_file():
-                zf.write(p, arcname=str(p.relative_to(dir_path)))
+        used_names: set[str] = set()
 
-        # ✅ 선택적으로 추가 파일들(루트)
+        def _unique_name(name: str) -> str:
+            if name not in used_names:
+                used_names.add(name)
+                return name
+            stem = Path(name).stem
+            suffix = Path(name).suffix
+            i = 1
+            while True:
+                cand = f"{stem}_{i}{suffix}"
+                if cand not in used_names:
+                    used_names.add(cand)
+                    return cand
+                i += 1
+
+        # 1) JSON들을 모두 루트로 평탄화
+        for p in dir_path.rglob("*.json"):
+            if not p.is_file():
+                continue
+            arcname = _unique_name(p.name)  # 폴더 구조 버리고 파일명만 사용
+            zf.write(p, arcname=arcname)
+
+        # 2) 추가 파일들(예: vx_removed_only.xlsx)도 루트에 추가
         if extra_files:
             for fname, data in extra_files:
-                zf.writestr(fname, data)
+                arcname = _unique_name(fname)
+                zf.writestr(arcname, data)
 
     mem.seek(0)
     return mem.getvalue()
+
 
 
 def render_srl_argument_del_ui():
