@@ -4,7 +4,7 @@ from __future__ import annotations
 """
 ZIP 업로드 → 임시폴더에 해제 → SRL 정리(write_back=True) →
 - 업로드 ZIP의 폴더 구조를 그대로 보존하여 '적용된 JSON만' ZIP으로 단일 다운로드 제공
-- 엑셀 파일은 생성/포함하지 않음
+- (내부적으로 vx_removed_only.xlsx를 ZIP 루트에 함께 포함; UI 구성/버튼 변화 없음)
 - 세션 키 안전 초기화 + 업로드 ZIP 이름에 _cleaned 자동 부여
 """
 
@@ -23,20 +23,28 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from dataly_manager.dataly_tools.srl_argument_del import (
-    srl_argument_cleanup,   # 엑셀은 사용하지 않음
+    srl_argument_cleanup,
+    make_vx_removed_only_excel,   # ✅ 최소 추가: VX-only 엑셀 생성 함수 임포트
 )
 
 
-def _zip_jsons_keep_structure(dir_path: Path) -> bytes:
+def _zip_jsons_keep_structure(dir_path: Path, extra_files: list[tuple[str, bytes]] | None = None) -> bytes:
     """
     dir_path 아래의 모든 *.json을 원래 상대 경로(= dir_path 기준) 그대로 ZIP에 담아 반환.
-    다른 파일 형식은 포함하지 않음.
+    extra_files: [(파일명, 바이트)] 를 ZIP 루트에 추가로 넣을 수 있음.
     """
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # ✅ JSON들 (상대경로 보존)
         for p in dir_path.rglob("*.json"):
             if p.is_file():
                 zf.write(p, arcname=str(p.relative_to(dir_path)))
+
+        # ✅ 선택적으로 추가 파일들(루트)
+        if extra_files:
+            for fname, data in extra_files:
+                zf.writestr(fname, data)
+
     mem.seek(0)
     return mem.getvalue()
 
@@ -90,15 +98,21 @@ def render_srl_argument_del_ui():
             result = srl_argument_cleanup(in_path=tdir, write_back=True, progress_cb=_cb)
             prog.progress(1.0, text="완료")
 
-            # 3) 적용된 JSON만 폴더 구조 그대로 ZIP으로 패키징
-            cleaned_zip = _zip_jsons_keep_structure(tdir)
+            # ✅ 3) VX-only 삭제 항목 엑셀 생성 (UI 변경 없이 내부적으로만 사용)
+            vx_xlsx = make_vx_removed_only_excel(result)
 
-            # 4) 다운로드 파일명: 업로드 ZIP 이름에 _cleaned 접미
+            # 4) 적용된 JSON + vx_removed_only.xlsx 를 폴더 구조 그대로 ZIP으로 패키징
+            cleaned_zip = _zip_jsons_keep_structure(
+                tdir,
+                extra_files=[("vx_removed_only.xlsx", vx_xlsx)],  # ✅ 루트에 포함
+            )
+
+            # 5) 다운로드 파일명: 업로드 ZIP 이름에 _cleaned 접미
             orig = getattr(up, "name", "") or "upload.zip"
-            base = Path(orig).stem                  # "data.zip" -> "data"
-            zip_out_name = f"{base}_cleaned.zip"    # -> "data_cleaned.zip"
+            base = Path(orig).stem
+            zip_out_name = f"{base}_cleaned.zip"
 
-            # 5) 세션에 저장(재실행에도 다운로드 버튼 유지)
+            # 6) 세션에 저장(재실행에도 다운로드 버튼 유지)
             st.session_state["srl_json_zip_bytes"] = cleaned_zip
             st.session_state["srl_json_zip_name"] = zip_out_name
             st.session_state["srl_metrics"] = {
