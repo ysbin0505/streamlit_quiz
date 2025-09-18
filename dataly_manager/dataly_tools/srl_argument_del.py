@@ -9,15 +9,15 @@ SRL argument 정리 엔진 (엑셀/CSV 없이 JSON만 처리)
 - 인자 삭제: argument.label 이 비어 있고(없음/None/공백) AND
   argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
   (⚠︎ argument가 모두 사라져도 SRL 프레임은 유지)
-- 프레디케이트 삭제(신규): SRL의 predicate가 가리키는 word_id들의 형태소 라벨 중
-  'V'로 시작하는 라벨을 모았을 때 집합이 {'VX'}(= V계열이 오직 VX 뿐)이라면
+- 프레디케이트 삭제: SRL의 predicate가 가리키는 word_id들의 형태소 라벨 중
+  'V'로 시작하는 라벨들의 집합이 정확히 {'VX'}(= V계열이 오직 VX 뿐)이라면
   → 해당 SRL 프레임 전체( predicate + argument ) 삭제
   예) VV+EC+VX → 유지,  VX+EC → 삭제
 
 호출
 - srl_argument_cleanup(in_path, write_back=True/False, progress_cb=None)
   - write_back=True 이면 실제 JSON 파일을 덮어씁니다(임시폴더에서 사용할 것).
-  - 반환: 요약/로그
+  - 반환: 요약/로그(dict)
 """
 
 import json
@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Set, Union, Callable, Tuple
 
 # ---------------- 내부 유틸 ----------------
 def _is_empty_label(arg: Dict[str, Any]) -> bool:
+    """label 이 없거나(None) 공백 문자열이면 True."""
     if "label" not in arg:
         return True
     v = arg.get("label")
@@ -36,6 +37,7 @@ def _is_empty_label(arg: Dict[str, Any]) -> bool:
 
 
 def _predicate_surface(srl_item: Dict[str, Any]) -> str:
+    """SRL 항목에서 대표 predicate 표면형(로그용)."""
     pred = srl_item.get("predicate")
     if isinstance(pred, list) and pred:
         return str(pred[0].get("form") or "")
@@ -45,6 +47,7 @@ def _predicate_surface(srl_item: Dict[str, Any]) -> str:
 
 
 def _to_int_safe(x: Any) -> Optional[int]:
+    """정수 변환(문자열/숫자) 실패 시 None, bool 방지."""
     try:
         if isinstance(x, bool):
             return None
@@ -54,6 +57,7 @@ def _to_int_safe(x: Any) -> Optional[int]:
 
 
 def _collect_words(sent: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """sentence.word 배열을 안전하게 반환."""
     w = sent.get("word")
     return w if isinstance(w, list) else []
 
@@ -318,6 +322,7 @@ def _process_json_obj(
                         removed_count += 1
                         continue
 
+                    # label 비었고, 해당 argument가 커버하는 단어에 VX가 있으면 → 그 argument 삭제
                     if _is_empty_label(a) and _argument_has_VX(a, sent, morph_by_wid):
                         removed_count += 1
                         log_rows.append([
@@ -333,7 +338,7 @@ def _process_json_obj(
                 if removed_count > 0:
                     sentence_changed = True
 
-                # ✅ argument가 0개여도 프레임은 유지
+                # ✅ 인자가 0개라도 프레임은 유지
                 srl["argument"] = kept_args
                 new_srl.append(srl)
 
