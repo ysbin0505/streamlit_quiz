@@ -5,10 +5,14 @@ from __future__ import annotations
 SRL argument 정리 엔진 (엑셀/CSV 없이 JSON만 처리)
 
 규칙
-- argument.label 이 비어 있고(없음/None/공백) AND
-  해당 argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
-- argument가 모두 사라지면 해당 SRL 항목 삭제
-- 추가: argument.label의 'PTR' 표기를 'PRT'로 보정
+- 라벨 보정: argument.label 의 'PTR' -> 'PRT'
+- 인자 삭제: argument.label 이 비어 있고(없음/None/공백) AND
+  argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
+  (argument 가 모두 사라지면 SRL 항목 삭제)
+- ★ 프레디케이트 삭제(신규): SRL의 predicate가 가리키는 word_id들의 형태소 라벨 중
+  'V'로 시작하는 라벨을 모았을 때 집합이 {'VX'}(= V계열이 오직 VX 뿐)이라면
+  → 해당 SRL 프레임 전체( predicate + argument ) 삭제
+  예) VV+EC+VX → 유지 / VX+EC → 삭제
 
 호출
 - srl_argument_cleanup(in_path, write_back=True/False, progress_cb=None)
@@ -120,7 +124,7 @@ def _argument_has_VX(arg: Dict[str, Any], sent: Dict[str, Any], morph_by_wid: Di
         return False
     for wid in wid_set:
         labels = morph_by_wid.get(wid, [])
-        if any(lab == "VX" for lab in labels):
+        if any((lab == "VX") for lab in labels):
             return True
     return False
 
@@ -167,8 +171,7 @@ def _patch_srl_labels(doc: Dict[str, Any]) -> int:
 
             for frame in srl_list:
                 args = frame.get("argument", [])
-                # argument 가 dict 단일 객체로 오는 데이터 방어
-                if isinstance(args, dict):
+                if isinstance(args, dict):  # 방어
                     args = [args]
                 if not isinstance(args, list):
                     continue
@@ -183,6 +186,51 @@ def _patch_srl_labels(doc: Dict[str, Any]) -> int:
     return replaced
 
 
+# --------- 프레디케이트 VX-only 판단 ---------
+def _collect_predicate_word_ids(srl_item: Dict[str, Any]) -> Set[int]:
+    """
+    srl_item.predicate 에서 word_id들을 set[int]로 수집.
+    """
+    res: Set[int] = set()
+    pred = srl_item.get("predicate")
+    if isinstance(pred, dict):
+        wid = _to_int_safe(pred.get("word_id"))
+        if wid is not None:
+            res.add(wid)
+    elif isinstance(pred, list):
+        for p in pred:
+            if not isinstance(p, dict):
+                continue
+            wid = _to_int_safe(p.get("word_id"))
+            if wid is not None:
+                res.add(wid)
+    return res
+
+
+def _predicate_is_vx_only(
+    srl_item: Dict[str, Any],
+    morph_by_wid: Dict[int, List[str]],
+) -> bool:
+    """
+    프레디케이트의 word_id들에 매칭되는 morph.label 중
+    'V'로 시작하는 라벨들의 집합이 {'VX'}이면 True.
+    (V계열 라벨이 비어있으면 False)
+    """
+    wids = _collect_predicate_word_ids(srl_item)
+    if not wids:
+        return False
+
+    v_like: Set[str] = set()
+    for wid in wids:
+        for lab in morph_by_wid.get(wid, []):
+            nl = _normalize_label(lab)
+            if nl.startswith("V"):   # V*, 예: VV, VA, VX, VCP, VCN 등
+                v_like.add(nl)
+
+    return (len(v_like) > 0) and (v_like == {"VX"})
+
+
+# --------- JSON 처리 ---------
 def _process_json_obj(
     obj: Dict[str, Any],
     file_path: Path,
@@ -194,13 +242,9 @@ def _process_json_obj(
     patched = _patch_srl_labels(obj)
     if patched > 0:
         changed = True
-        # 파일 요약 로그(치환 건수)
-        log_rows.append([
-            str(file_path), "", "", "",
-            f"label_PTR->PRT:{patched}"
-        ])
+        log_rows.append([str(file_path), "", "", "", f"label_PTR->PRT:{patched}"])
 
-    # 1) 인자 삭제 규칙 처리
+    # 1) 인자 삭제 규칙 & 2) 프레디케이트 VX-only 규칙
     documents = obj.get("document") or []
     for doc in documents:
         sents = doc.get("sentence") or []
@@ -226,6 +270,20 @@ def _process_json_obj(
                     sentence_changed = True
                     continue
 
+                # 2) 프레디케이트 VX-only → 프레임 삭제
+                if _predicate_is_vx_only(srl, morph_by_wid):
+                    sentence_changed = True
+                    changed = True
+                    log_rows.append([
+                        str(file_path),
+                        str(sent.get("id") or ""),
+                        _predicate_surface(srl),
+                        "",
+                        "predicate_removed_vx_only",
+                    ])
+                    continue  # 이 SRL 프레임 자체 제거
+
+                # 1) 인자 삭제 규칙
                 args = srl.get("argument")
                 if not isinstance(args, list):
                     args = []
@@ -253,7 +311,9 @@ def _process_json_obj(
                 if removed_count > 0:
                     sentence_changed = True
 
+                # argument가 비면 SRL 프레임 삭제
                 if len(kept_args) == 0:
+                    sentence_changed = True
                     log_rows.append([
                         str(file_path),
                         str(sent.get("id") or ""),
