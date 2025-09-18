@@ -13,8 +13,12 @@ SRL 정리 엔진 (엑셀/CSV 없음)
 
 ※ 인자(argument) 관련 삭제/정리는 더 이상 수행하지 않음.
    (argument가 비어 있어도 프레임 유지, 빈 라벨/범위/VX 여부 등 무시)
+
+엑셀 생성:
+- make_vx_removed_only_excel(result)  → 'predicate_removed_vx_only' 행만 필터링
 """
 
+import io
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union, Callable
@@ -22,7 +26,6 @@ from typing import Any, Dict, List, Optional, Set, Union, Callable
 
 # ---------------- 내부 유틸 ----------------
 def _predicate_surface(srl_item: Dict[str, Any]) -> str:
-    """SRL 항목에서 대표 predicate 표면형(로그용)."""
     pred = srl_item.get("predicate")
     if isinstance(pred, list) and pred:
         return str(pred[0].get("form") or "")
@@ -32,7 +35,6 @@ def _predicate_surface(srl_item: Dict[str, Any]) -> str:
 
 
 def _to_int_safe(x: Any) -> Optional[int]:
-    """정수 변환(문자열/숫자) 실패 시 None, bool 방지."""
     try:
         if isinstance(x, bool):
             return None
@@ -42,7 +44,6 @@ def _to_int_safe(x: Any) -> Optional[int]:
 
 
 def _collect_words(sent: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """sentence.word 배열을 안전하게 반환."""
     w = sent.get("word")
     return w if isinstance(w, list) else []
 
@@ -50,7 +51,7 @@ def _collect_words(sent: Dict[str, Any]) -> List[Dict[str, Any]]:
 def _collect_morph_labels_by_word(sent: Dict[str, Any]) -> Dict[int, List[str]]:
     """
     word_id(int) -> [morph.label, ...]
-    morph.word_id 가 문자열로 들어오는 데이터 특성에 맞춰 정규화.
+    morph.word_id 가 문자열일 수 있어 안전 변환.
     """
     out: Dict[int, List[str]] = {}
     morph_list = sent.get("morph")
@@ -68,7 +69,6 @@ def _collect_morph_labels_by_word(sent: Dict[str, Any]) -> Dict[int, List[str]]:
 
 
 def _iter_json_files(path: Path):
-    """입력 경로에서 JSON 파일 목록과 루트 디렉터리 반환."""
     if path.is_file() and path.suffix.lower() == ".json":
         return [path], None
     if path.is_dir():
@@ -77,13 +77,11 @@ def _iter_json_files(path: Path):
 
 
 def _save_json(obj: Dict[str, Any], in_file: Path) -> None:
-    """원본 파일 덮어쓰기 저장."""
     in_file.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 # --------- 라벨 보정 유틸 ---------
 def _normalize_label(v: Any) -> str:
-    """라벨 비교를 위한 정규화: 문자열화 + strip + 대문자."""
     if v is None:
         return ""
     return str(v).strip().upper()
@@ -111,7 +109,6 @@ def _patch_srl_labels(doc: Dict[str, Any]) -> int:
 
             for frame in srl_list:
                 args = frame.get("argument", [])
-                # argument 가 dict 단일 객체로 오는 데이터 방어
                 if isinstance(args, dict):
                     args = [args]
                 if not isinstance(args, list):
@@ -129,9 +126,6 @@ def _patch_srl_labels(doc: Dict[str, Any]) -> int:
 
 # --------- 프레디케이트 VX-only 판단 ---------
 def _collect_predicate_word_ids(srl_item: Dict[str, Any]) -> Set[int]:
-    """
-    srl_item.predicate 에서 word_id들을 set[int]로 수집.
-    """
     res: Set[int] = set()
     pred = srl_item.get("predicate")
     if isinstance(pred, dict):
@@ -153,8 +147,7 @@ def _predicate_is_vx_only(
     morph_by_wid: Dict[int, List[str]],
 ) -> bool:
     """
-    프레디케이트의 word_id들에 매칭되는 morph.label 중
-    'V'로 시작하는 라벨들의 집합이 {'VX'}이면 True.
+    프레디케이트 word_id들의 morph.label 중 'V'로 시작하는 라벨의 집합이 정확히 {'VX'}면 True.
     (V계열 라벨이 비어있으면 False)
     """
     wids = _collect_predicate_word_ids(srl_item)
@@ -211,7 +204,6 @@ def _process_json_obj(
                     sentence_changed = True
                     continue
 
-                # 프레디케이트 VX-only → 프레임 삭제
                 if _predicate_is_vx_only(srl, morph_by_wid):
                     sentence_changed = True
                     changed = True
@@ -222,9 +214,9 @@ def _process_json_obj(
                         "",
                         "predicate_removed_vx_only",
                     ])
-                    continue  # 이 SRL 프레임 자체 제거
+                    continue  # 프레임 전체 제거
 
-                # ✅ 인자에 대한 어떠한 삭제/보정도 수행하지 않음
+                # ✅ 인자에 대한 삭제/보정 없음
                 new_srl.append(srl)
 
             if sentence_changed or len(new_srl) != len(srl_list):
@@ -286,3 +278,43 @@ def srl_argument_cleanup(
         "changed_files_list": changed_files,
         "log_rows": log_rows,
     }
+
+
+# ---------------- 엑셀: VX-only 삭제 항목만 ----------------
+def make_vx_removed_only_excel(result: Dict[str, Any]) -> bytes:
+    """
+    action == 'predicate_removed_vx_only' 인 행만 필터링하여 xlsx 바이트로 반환
+    - 컬럼: file, sentence_id, predicate_form
+    """
+    import pandas as pd
+    buf = io.BytesIO()
+
+    rows = result.get("log_rows") or []
+    header = rows[0] if rows else ["file", "sentence_id", "predicate_form", "argument_form", "action"]
+    body = rows[1:] if len(rows) > 1 else []
+
+    # 인덱스 찾기(유연하게)
+    try:
+        idx_file = header.index("file")
+        idx_sid  = header.index("sentence_id")
+        idx_pred = header.index("predicate_form")
+        idx_act  = header.index("action")
+    except ValueError:
+        idx_file, idx_sid, idx_pred, idx_act = 0, 1, 2, 4
+
+    filtered = []
+    for r in body:
+        if len(r) > idx_act and str(r[idx_act]) == "predicate_removed_vx_only":
+            filtered.append([
+                r[idx_file] if len(r) > idx_file else "",
+                r[idx_sid]  if len(r) > idx_sid  else "",
+                r[idx_pred] if len(r) > idx_pred else "",
+            ])
+
+    df = pd.DataFrame(filtered, columns=["file", "sentence_id", "predicate_form"])
+
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, sheet_name="VX_Removed", index=False)
+
+    buf.seek(0)
+    return buf.getvalue()
