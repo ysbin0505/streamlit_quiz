@@ -8,21 +8,21 @@ SRL argument 정리 엔진 (엑셀/CSV 없이 JSON만 처리)
 - 라벨 보정: argument.label 의 'PTR' -> 'PRT'
 - 인자 삭제: argument.label 이 비어 있고(없음/None/공백) AND
   argument가 커버하는 단어들 중 morph.label == "VX" 가 하나라도 있으면 → 그 argument 삭제
-  (argument 가 모두 사라지면 SRL 항목 삭제)
-- ★ 프레디케이트 삭제(신규): SRL의 predicate가 가리키는 word_id들의 형태소 라벨 중
+  (⚠︎ argument가 모두 사라져도 SRL 프레임은 유지)
+- 프레디케이트 삭제(신규): SRL의 predicate가 가리키는 word_id들의 형태소 라벨 중
   'V'로 시작하는 라벨을 모았을 때 집합이 {'VX'}(= V계열이 오직 VX 뿐)이라면
   → 해당 SRL 프레임 전체( predicate + argument ) 삭제
-  예) VV+EC+VX → 유지 / VX+EC → 삭제
+  예) VV+EC+VX → 유지,  VX+EC → 삭제
 
 호출
 - srl_argument_cleanup(in_path, write_back=True/False, progress_cb=None)
   - write_back=True 이면 실제 JSON 파일을 덮어씁니다(임시폴더에서 사용할 것).
-  - 반환: 요약/로그(엑셀은 만들지 않음)
+  - 반환: 요약/로그
 """
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Set, Union, Callable
+from typing import Any, Dict, List, Optional, Set, Union, Callable, Tuple
 
 
 # ---------------- 내부 유틸 ----------------
@@ -59,6 +59,10 @@ def _collect_words(sent: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _collect_morph_labels_by_word(sent: Dict[str, Any]) -> Dict[int, List[str]]:
+    """
+    word_id(int) -> [morph.label, ...]
+    morph.word_id 가 문자열로 들어오는 데이터 특성에 맞춰 정규화.
+    """
     out: Dict[int, List[str]] = {}
     morph_list = sent.get("morph")
     if not isinstance(morph_list, list):
@@ -75,6 +79,9 @@ def _collect_morph_labels_by_word(sent: Dict[str, Any]) -> Dict[int, List[str]]:
 
 
 def _arg_word_ids_from_word_id_field(arg: Dict[str, Any]) -> Set[int]:
+    """
+    argument.word_id 가 int 또는 list 로 올 수 있음 -> set[int] 로 정규화.
+    """
     res: Set[int] = set()
     if "word_id" not in arg:
         return res
@@ -92,6 +99,10 @@ def _arg_word_ids_from_word_id_field(arg: Dict[str, Any]) -> Set[int]:
 
 
 def _arg_word_ids_from_span(arg: Dict[str, Any], sent: Dict[str, Any]) -> Set[int]:
+    """
+    argument.begin~end 문자 범위로 포함되는 word.id 를 수집.
+    word.begin >= arg.begin AND word.end <= arg.end 로 판정.
+    """
     res: Set[int] = set()
     ab = _to_int_safe(arg.get("begin"))
     ae = _to_int_safe(arg.get("end"))
@@ -112,6 +123,11 @@ def _arg_word_ids_from_span(arg: Dict[str, Any], sent: Dict[str, Any]) -> Set[in
 
 
 def _extract_arg_word_ids(arg: Dict[str, Any], sent: Dict[str, Any]) -> Set[int]:
+    """
+    argument 가 커버하는 word_id 집합을 추출:
+    1) word_id 필드 우선 사용
+    2) 없거나 비어 있으면 begin~end 범위로 추출
+    """
     wids = _arg_word_ids_from_word_id_field(arg)
     if not wids:
         wids = _arg_word_ids_from_span(arg, sent)
@@ -119,17 +135,21 @@ def _extract_arg_word_ids(arg: Dict[str, Any], sent: Dict[str, Any]) -> Set[int]
 
 
 def _argument_has_VX(arg: Dict[str, Any], sent: Dict[str, Any], morph_by_wid: Dict[int, List[str]]) -> bool:
+    """
+    argument 가 커버하는 단어들 중 morph.label == 'VX' 가 하나라도 있으면 True.
+    """
     wid_set = _extract_arg_word_ids(arg, sent)
     if not wid_set:
         return False
     for wid in wid_set:
         labels = morph_by_wid.get(wid, [])
-        if any((lab == "VX") for lab in labels):
+        if any(lab == "VX" for lab in labels):
             return True
     return False
 
 
 def _iter_json_files(path: Path) -> Tuple[List[Path], Optional[Path]]:
+    """입력 경로에서 JSON 파일 목록과 루트 디렉터리 반환."""
     if path.is_file() and path.suffix.lower() == ".json":
         return [path], None
     if path.is_dir():
@@ -138,6 +158,7 @@ def _iter_json_files(path: Path) -> Tuple[List[Path], Optional[Path]]:
 
 
 def _save_json(obj: Dict[str, Any], in_file: Path) -> None:
+    """원본 파일 덮어쓰기 저장."""
     in_file.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -171,7 +192,8 @@ def _patch_srl_labels(doc: Dict[str, Any]) -> int:
 
             for frame in srl_list:
                 args = frame.get("argument", [])
-                if isinstance(args, dict):  # 방어
+                # argument 가 dict 단일 객체로 오는 데이터 방어
+                if isinstance(args, dict):
                     args = [args]
                 if not isinstance(args, list):
                     continue
@@ -283,7 +305,7 @@ def _process_json_obj(
                     ])
                     continue  # 이 SRL 프레임 자체 제거
 
-                # 1) 인자 삭제 규칙
+                # 1) 인자 삭제 규칙 (argument가 0개여도 프레임 유지)
                 args = srl.get("argument")
                 if not isinstance(args, list):
                     args = []
@@ -311,18 +333,7 @@ def _process_json_obj(
                 if removed_count > 0:
                     sentence_changed = True
 
-                # argument가 비면 SRL 프레임 삭제
-                if len(kept_args) == 0:
-                    sentence_changed = True
-                    log_rows.append([
-                        str(file_path),
-                        str(sent.get("id") or ""),
-                        _predicate_surface(srl),
-                        "",
-                        "srl_removed_no_arguments",
-                    ])
-                    continue
-
+                # ✅ argument가 0개여도 프레임은 유지
                 srl["argument"] = kept_args
                 new_srl.append(srl)
 

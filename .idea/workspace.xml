@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="PTR→PRT 수정">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/srl_argument_del.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/srl_argument_del.py" afterDir="false" />
-    </list>
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="*_predicate_is_vx_only()를 추가해서 predicate word_id ↔ morph word_id 매칭 후, V로 시작하는 라벨 집합이 {'VX'}인 경우에 SRL 프레임 전체 삭제" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -100,15 +97,7 @@
       <workItem from="1757908964626" duration="10000" />
       <workItem from="1757913616536" duration="1131000" />
       <workItem from="1757920219765" duration="4848000" />
-      <workItem from="1758089267828" duration="1389000" />
-    </task>
-    <task id="LOCAL-00017" summary="표 - 반영 추가">
-      <option name="closed" value="true" />
-      <created>1756691640099</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1756691640099</updated>
+      <workItem from="1758089267828" duration="2236000" />
     </task>
     <task id="LOCAL-00018" summary="사진 - 반영 추가">
       <option name="closed" value="true" />
@@ -494,7 +483,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758083139636</updated>
     </task>
-    <option name="localTasksCounter" value="66" />
+    <task id="LOCAL-00066" summary="*_predicate_is_vx_only()를 추가해서 predicate word_id ↔ morph word_id 매칭 후, V로 시작하는 라벨 집합이 {'VX'}인 경우에 SRL 프레임 전체 삭제">
+      <option name="closed" value="true" />
+      <created>1758162179045</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1758162179045</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -526,7 +523,8 @@
     <MESSAGE value="추가" />
     <MESSAGE value="수정" />
     <MESSAGE value="PTR→PRT 수정" />
-    <option name="LAST_COMMIT_MESSAGE" value="PTR→PRT 수정" />
+    <MESSAGE value="*_predicate_is_vx_only()를 추가해서 predicate word_id ↔ morph word_id 매칭 후, V로 시작하는 라벨 집합이 {'VX'}인 경우에 SRL 프레임 전체 삭제" />
+    <option name="LAST_COMMIT_MESSAGE" value="*_predicate_is_vx_only()를 추가해서 predicate word_id ↔ morph word_id 매칭 후, V로 시작하는 라벨 집합이 {'VX'}인 경우에 SRL 프레임 전체 삭제" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$srl_argument_del.coverage" NAME="srl_argument_del 커버리지 결과" MODIFIED="1758067388147" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager/dataly_tools" />
