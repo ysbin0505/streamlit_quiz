@@ -484,7 +484,7 @@ def apply_excel_desc_to_photo_json(
     skip_blank: bool = False
 ) -> Dict[str, Any]:
     """
-    사진 JSON에 엑셀의 '설명 문장'을 반영.
+    사진 JSON에 엑셀의 '설명 문장'과 'Medium_category'를 반영.
     - 같은 id 내에서 '엑셀 행 순서'와 '기존 JSON 슬롯 순서'를 1:1로 맞춰 반영
     - 규칙:
       1) 유형·문장 모두 빈값("")이면 해당 슬롯을 '삭제'
@@ -492,8 +492,14 @@ def apply_excel_desc_to_photo_json(
       3) 문장만 있고 유형 빈값이면 '본문만 교체, 기존 유형 유지'
       4) 엑셀 행 수 < JSON 슬롯 수면, 남은 슬롯은 뒤에서부터 삭제하여
          최종 슬롯 개수를 엑셀과 '정확히 동일'하게 맞춤
+    - Medium_category 반영:
+      * id별로 엑셀에서 수집한 Medium_category가 존재하면 document.metadata.Medium_category에 기록
+      * skip_blank=True이면 공백값은 무시
     """
+    # 기존: 문장/유형 매핑
     mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
+    # 추가: Medium_category 매핑
+    medium_map = _collect_medium_by_id(excel_df)
 
     docs = json_obj.get("document", [])
     if not isinstance(docs, list):
@@ -501,44 +507,72 @@ def apply_excel_desc_to_photo_json(
 
     for doc in docs:
         doc_id = str(doc.get("id", ""))
+
+        # 2-1) Medium_category 반영
+        if doc_id:
+            mc_val = medium_map.get(doc_id, "")
+            if mc_val or not skip_blank:
+                # metadata 보장
+                if not isinstance(doc.get("metadata"), dict):
+                    doc["metadata"] = {}
+                # 공백이더라도 skip_blank=False면 명시적으로 반영
+                if mc_val or not skip_blank:
+                    doc["metadata"]["Medium_category"] = mc_val
+
+        # 2-2) 설명 문장/유형 반영 (기존 로직 유지)
         seq = mapping.get(doc_id, [])
-        # 현재 문서의 슬롯 스냅샷(삭제 안전 처리를 위해 list로 고정)
         slots = list(_iter_sentence_slots_with_old(doc))
 
-        # 엑셀-JSON 매칭 길이
         n = min(len(seq), len(slots))
         delete_slot_indices = []
 
-        # 1) 앞에서부터 n개 매칭
         for i in range(n):
             (slot_desc, old_text) = slots[i]
             typ, new_sent = seq[i]
             typ_clean = (typ or "").strip()
             sent_clean = (new_sent or "").strip()
 
-            # 둘 다 비면 '삭제' 지시로 간주
             if typ_clean == "" and sent_clean == "":
                 delete_slot_indices.append(i)
                 continue
 
-            # 변경(문장/유형 교체 규칙)
             composed = _compose_text_with_type(old_text, sent_clean, typ_clean)
             _assign_text_to_slot(slot_desc, composed)
 
-        # 2) 엑셀 길이보다 JSON 슬롯이 더 길면, 남은 슬롯은 모두 삭제
         if len(slots) > len(seq):
             delete_slot_indices.extend(range(n, len(slots)))
 
-        # 3) 삭제 실제 수행 (뒤에서부터 지워서 인덱스 안정성 확보)
         for idx in sorted(delete_slot_indices, reverse=True):
             _delete_slot(slots[idx][0])
 
-        # 4) 비어버린 컨테이너/키 정리
         _cleanup_exp_sentences(doc)
 
     return json_obj
 
+def _collect_medium_by_id(df: pd.DataFrame) -> Dict[str, str]:
+    """
+    엑셀에서 id별 Medium_category 값을 수집.
+    - 병합 셀 보정을 위해 id, Medium_category ffill
+    - 각 id에 대해 '비어있지 않은 첫 값'을 채택
+    """
+    if "id" not in df.columns:
+        return {}
 
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].ffill().astype(str)
+
+    if "Medium_category" not in tmp.columns:
+        return {}
+
+    tmp["Medium_category"] = tmp["Medium_category"].ffill().fillna("").astype(str)
+
+    out: Dict[str, str] = {}
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        mc = row["Medium_category"].strip()
+        if _id and mc and _id not in out:
+            out[_id] = mc
+    return out
 
 def apply_excel_desc_to_json_from_zip(
     zip_bytes: bytes,
