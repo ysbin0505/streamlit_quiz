@@ -237,16 +237,40 @@ def _write_excel_to_bytes(all_rows: List[Dict[str, Any]]) -> bytes:
         if rid and rid not in first_url_by_id:
             first_url_by_id[rid] = row.get("meta_url", "") or ""
 
+    from openpyxl.cell.cell import MergedCell
+    try:
+        from openpyxl.worksheet.hyperlink import Hyperlink
+    except Exception:
+        Hyperlink = None  # 구버전 대비
+
     for key, start in start_row_by_group.items():
         doc_id = key[0]
-        url = first_url_by_id.get(doc_id, "")
-        if url and url.startswith(("http://", "https://")):
-            c = ws.cell(row=start, column=6)
-            c.hyperlink = url
-            # 파란색, 밑줄 없음
-            c.font = Font(color=LINK_BLUE, underline=None)
-            c.alignment = Alignment(vertical="top", wrap_text=True)
-            c.border = (THIN_BORDER)
+        url = str(first_url_by_id.get(doc_id, "") or "").strip()
+        if not (url and url.startswith(("http://", "https://"))):
+            continue
+
+        c = ws.cell(row=start, column=6)
+
+        # 병합셀인 경우 top-left 좌표가 맞는지 확인
+        if isinstance(c, MergedCell):
+            # 보통 start,6은 top-left라 정상 Cell이어야 하지만
+            # 드물게 MergedCell로 잡히면 한 번 해제/재설정이 필요할 수 있음.
+            # 여기서는 하이퍼링크를 워크시트 레벨에 직접 추가하는 fallback 사용
+            if Hyperlink is not None:
+                ws._hyperlinks.append(Hyperlink(ref=c.coordinate, target=url, display=url))
+        else:
+            try:
+                # 신버전 권장 경로: 문자열 직접 대입
+                c.hyperlink = url
+            except AttributeError:
+                # 구버전/특수환경: Hyperlink 객체 직접 추가
+                if Hyperlink is not None:
+                    ws._hyperlinks.append(Hyperlink(ref=c.coordinate, target=url, display=url))
+
+        # 스타일 (밑줄 끄기: 일부 버전은 None 대신 "none"이 안전)
+        c.font = Font(color=LINK_BLUE, underline="none")
+        c.alignment = Alignment(vertical="top", wrap_text=True)
+        c.border = THIN_BORDER
 
     # 행 높이 대략 조정
     LINE_HEIGHT_PT = 18

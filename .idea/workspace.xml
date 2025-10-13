@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="이제 argument의 form/word_id/morph는 전혀 보지 않습니다.">
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="Medium_category 값도 각 document.metadata.Medium_category에 반영">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/photo_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/photo_to_excel.py" afterDir="false" />
     </list>
@@ -101,15 +101,8 @@
       <workItem from="1757913616536" duration="1131000" />
       <workItem from="1757920219765" duration="4848000" />
       <workItem from="1758089267828" duration="6563000" />
-      <workItem from="1758505364269" duration="972000" />
-    </task>
-    <task id="LOCAL-00024" summary="main 단순화">
-      <option name="closed" value="true" />
-      <created>1756951440533</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1756951440533</updated>
+      <workItem from="1758505364269" duration="2225000" />
+      <workItem from="1760319736033" duration="300000" />
     </task>
     <task id="LOCAL-00025" summary="main 단순화">
       <option name="closed" value="true" />
@@ -495,7 +488,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758182258213</updated>
     </task>
-    <option name="localTasksCounter" value="73" />
+    <task id="LOCAL-00073" summary="Medium_category 값도 각 document.metadata.Medium_category에 반영">
+      <option name="closed" value="true" />
+      <created>1758506371858</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1758506371858</updated>
+    </task>
+    <option name="localTasksCounter" value="74" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -530,7 +531,8 @@
     <MESSAGE value="*_predicate_is_vx_only()를 추가해서 predicate word_id ↔ morph word_id 매칭 후, V로 시작하는 라벨 집합이 {'VX'}인 경우에 SRL 프레임 전체 삭제" />
     <MESSAGE value="SRL Label 비어있으면 제거하는거 제거" />
     <MESSAGE value="이제 argument의 form/word_id/morph는 전혀 보지 않습니다." />
-    <option name="LAST_COMMIT_MESSAGE" value="이제 argument의 form/word_id/morph는 전혀 보지 않습니다." />
+    <MESSAGE value="Medium_category 값도 각 document.metadata.Medium_category에 반영" />
+    <option name="LAST_COMMIT_MESSAGE" value="Medium_category 값도 각 document.metadata.Medium_category에 반영" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$srl_argument_del.coverage" NAME="srl_argument_del 커버리지 결과" MODIFIED="1758067388147" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager/dataly_tools" />
