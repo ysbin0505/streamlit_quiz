@@ -32,6 +32,62 @@ META_ORDER = [
     "publisher", "term", "source_id",
 ]
 
+META_NOTE_RE = re.compile(r'"note"\s*:\s*"(?P<note>.*?)"', re.DOTALL)
+
+# 엑셀 metadata 셀에서 { ... } 블록을 찾아 dict로 파싱
+def _parse_metadata_cell(cell_text: Any) -> Dict[str, Any]:
+    """
+    'metadata : { ... }' 형태의 멀티라인 문자열에서 { ... } 만 추출하여 json.loads 시도.
+    엑셀에서 따옴표가 이중("...")으로 들어간 경우도 복원.
+    실패 시 최소한 "note"만 정규식으로 추출.
+    """
+    if cell_text is None:
+        return {}
+    s = str(cell_text).strip()
+    if not s:
+        return {}
+
+    i, j = s.find("{"), s.rfind("}")
+    if i == -1 or j == -1 or i >= j:
+        s_fix = s.replace('""', '"')
+        m = META_NOTE_RE.search(s_fix)
+        return {"note": m.group("note")} if m else {}
+
+    blob = s[i:j+1].strip()
+    # json 파싱 시도 (따옴표 이중화 보정 포함)
+    for candidate in (blob, blob.replace('""', '"')):
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
+
+    s_fix = blob.replace('""', '"')
+    m = META_NOTE_RE.search(s_fix)
+    return {"note": m.group("note")} if m else {}
+
+def _collect_note_by_id(df: pd.DataFrame) -> Dict[str, str]:
+    """
+    엑셀 DF에서 id별로 metadata 셀을 파싱해 note를 수집.
+    - id는 ffill
+    - 각 id에 대해 '비어있지 않은 첫 note'를 채택
+    """
+    if "id" not in df.columns or "metadata" not in df.columns:
+        return {}
+
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].ffill().astype(str)
+
+    out: Dict[str, str] = {}
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        if not _id:
+            continue
+        meta_dict = _parse_metadata_cell(row["metadata"])
+        note = str(meta_dict.get("note", "") or "").strip()
+        if note and _id not in out:
+            out[_id] = note
+    return out
+
 THIN_BORDER = Border(
     left=Side(style="thin"), right=Side(style="thin"),
     top=Side(style="thin"), bottom=Side(style="thin"),
@@ -577,10 +633,9 @@ def apply_excel_desc_to_photo_json(
       * id별로 엑셀에서 수집한 Medium_category가 존재하면 document.metadata.Medium_category에 기록
       * skip_blank=True이면 공백값은 무시
     """
-    # 기존: 문장/유형 매핑
     mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
-    # 추가: Medium_category 매핑
     medium_map = _collect_medium_by_id(excel_df)
+    note_map = _collect_note_by_id(excel_df)
 
     docs = json_obj.get("document", [])
     if not isinstance(docs, list):
@@ -593,12 +648,22 @@ def apply_excel_desc_to_photo_json(
         if doc_id:
             mc_val = medium_map.get(doc_id, "")
             if mc_val or not skip_blank:
+
                 # metadata 보장
                 if not isinstance(doc.get("metadata"), dict):
                     doc["metadata"] = {}
-                # 공백이더라도 skip_blank=False면 명시적으로 반영
-                if mc_val or not skip_blank:
-                    doc["metadata"]["Medium_category"] = mc_val
+
+                # Medium_category 반영
+                if doc_id:
+                    mc_val = medium_map.get(doc_id, "")
+                    if mc_val or not skip_blank:
+                        doc["metadata"]["Medium_category"] = mc_val
+
+                # note 반영
+                if doc_id:
+                    note_val = note_map.get(doc_id, "")
+                    if note_val or not skip_blank:
+                        doc["metadata"]["note"] = note_val
 
         # 2-2) 설명 문장/유형 반영 (기존 로직 유지)
         seq = mapping.get(doc_id, [])
