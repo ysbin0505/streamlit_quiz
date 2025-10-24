@@ -310,6 +310,63 @@ def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
         return _write_excel_to_bytes([])
     return _write_excel_to_bytes(rows)
 
+def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> pd.DataFrame:
+    """
+    Excel 파일에서 시트를 읽어 하나의 DataFrame으로 합친다.
+    - sheet_name == None: 모든 시트
+    - sheet_name == str: 해당 이름의 단일 시트
+    - sheet_name == Iterable[str]: 지정 시트들만 순서대로
+    반환 DF는 시트 순서와 원본 행 순서를 유지하도록 index를 다시 매깁니다.
+    필요 컬럼(id, '설명 문장', 선택: '유형', 'Medium_category')이 없으면 빈 컬럼으로 보정.
+    """
+    need_cols = ["id", "설명 문장"]
+    opt_cols  = ["유형", "Medium_category"]
+
+    if sheet_name is None:
+        sheets = pd.read_excel(ef, sheet_name=None)  # OrderedDict[시트명 -> DF]
+        dfs = []
+        for name, df in sheets.items():
+            df = df.copy()
+            for c in need_cols + opt_cols:
+                if c not in df.columns:
+                    df[c] = ""
+            df["__sheet__"] = str(name)
+            dfs.append(df)
+        if not dfs:
+            return pd.DataFrame(columns=need_cols + opt_cols)
+        out = pd.concat(dfs, ignore_index=True)
+        return out
+
+    # 단일 시트명 (str)
+    if isinstance(sheet_name, str):
+        df = pd.read_excel(ef, sheet_name=sheet_name)
+        df = df.copy()
+        for c in need_cols + opt_cols:
+            if c not in df.columns:
+                df[c] = ""
+        df["__sheet__"] = str(sheet_name)
+        return df
+
+    # 시트명 리스트/이터러블
+    try:
+        names = list(sheet_name)
+    except TypeError:
+        raise TypeError("sheet_name은 None, 문자열, 또는 문자열 리스트여야 합니다.")
+    dfs = []
+    all_sheets = pd.read_excel(ef, sheet_name=None)
+    for nm in names:
+        if nm not in all_sheets:
+            # 없는 시트는 건너뜀(필요 시 에러로 바꿔도 됨)
+            continue
+        df = all_sheets[nm].copy()
+        for c in need_cols + opt_cols:
+            if c not in df.columns:
+                df[c] = ""
+        df["__sheet__"] = str(nm)
+        dfs.append(df)
+    if not dfs:
+        return pd.DataFrame(columns=need_cols + opt_cols)
+    return pd.concat(dfs, ignore_index=True)
 
 # ==========================================
 # Excel('설명 문장') → JSON (역방향, ZIP 지원)
@@ -637,7 +694,7 @@ def apply_excel_desc_to_json_from_zip(
 
         # Excel 로드
         with zf.open(excel_member) as ef:
-            df = pd.read_excel(ef, sheet_name=sheet_name) if sheet_name else pd.read_excel(ef)
+            df = _read_excel_multi(ef, sheet_name=sheet_name)
 
         # 반영
         updated = apply_excel_desc_to_photo_json(json_obj, df, skip_blank=skip_blank)
