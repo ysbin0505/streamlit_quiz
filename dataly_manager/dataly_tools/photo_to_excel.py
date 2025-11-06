@@ -32,6 +32,20 @@ META_ORDER = [
     "publisher", "term", "source_id",
 ]
 
+_ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
+def xls_safe(val) -> str:
+    """
+    openpyxl이 허용하지 않는 XML 제어문자를 제거.
+    숫자/None도 문자열로 안전 변환.
+    """
+    if val is None:
+        return ""
+    s = str(val)
+    # 흔한 보정: 고아 따옴표/널문자 등
+    s = s.replace("\x00", "")  # 널은 빈문자로
+    s = _ILLEGAL_XML_RE.sub("", s)
+    return s
+
 META_NOTE_RE = re.compile(r'"note"\s*:\s*"(?P<note>.*?)"', re.DOTALL)
 
 # 엑셀 metadata 셀에서 { ... } 블록을 찾아 dict로 파싱
@@ -255,13 +269,13 @@ def _write_excel_to_bytes(all_rows: List[Dict[str, Any]]) -> bytes:
     current_row = 2
     for row in all_rows:
         ws.append([
-            row.get("id",""),
-            row.get("worker_id_cnst",""),
-            row.get("Medium_category",""),
-            row.get("유형",""),
-            row.get("설명 문장",""),
-            row.get("metadata",""),
-            row.get("mdfcn_memo(검수자 수정 이력)",""),
+            xls_safe(row.get("id", "")),
+            xls_safe(row.get("worker_id_cnst", "")),
+            xls_safe(row.get("Medium_category", "")),
+            xls_safe(row.get("유형", "")),
+            xls_safe(row.get("설명 문장", "")),
+            xls_safe(row.get("metadata", "")),
+            xls_safe(row.get("mdfcn_memo(검수자 수정 이력)", "")),
         ])
         for c in range(1, len(headers) + 1):
             ws.cell(row=current_row, column=c).alignment = Alignment(
