@@ -18,6 +18,27 @@ from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 
 import zipfile
 from pathlib import Path
+
+import unicodedata as ud
+
+def _norm_key(s: str) -> str:
+    if s is None:
+        return ""
+    s = str(s)
+    s = ud.normalize("NFC", s)
+    s = s.replace("\u200b", "").replace("\ufeff", "")  # 제로폭/ BOM 제거
+    return s.strip()
+
+def _norm_ref_type(s: str) -> str:
+    if not s:
+        return ""
+    s = ud.normalize("NFC", str(s)).strip().lower()
+    # 다양한 표기 → 밑줄 표기 통일
+    s = s.replace("-", "_").replace(" ", "_")
+    # tableRef, tableReference 등도 커버
+    s = s.replace("tableref", "table_ref").replace("rowref", "row_ref").replace("colref", "col_ref").replace("cellref", "cell_ref")
+    return s
+
 # ===== 유형 매핑 =====
 REF_MAP = {
     "table_ref": "표 설명 문장",
@@ -288,15 +309,8 @@ def table_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
 def _collect_excel_sentences_by_id(df: pd.DataFrame) -> Dict[str, List[str]]:
     if "id" not in df.columns or "설명 문장" not in df.columns:
         raise ValueError("엑셀에 'id'와 '설명 문장' 컬럼이 필요합니다.")
-
     tmp = df.copy()
-
-    # ★ 병합 셀 복원
-    if "id" in tmp.columns:
-        tmp["id"] = tmp["id"].ffill()
-
-    # 문자열화 + NaN 처리
-    tmp["id"] = tmp["id"].astype(str)
+    tmp["id"] = tmp["id"].ffill().astype(str).map(_norm_key)
     tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
 
     bucket: Dict[str, List[str]] = defaultdict(list)
@@ -392,7 +406,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame) -
         return json_obj  # 형식 방어
 
     for doc in docs:
-        doc_id = str(doc.get("id", ""))
+        doc_id = _norm_key(doc.get("id", ""))
         seq = mapping.get(doc_id, [])
         if not seq:
             continue
@@ -564,7 +578,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
         mapping_by_type = _collect_excel_sentences_by_id_type(excel_df, skip_blank=skip_blank)
 
         for doc in docs:
-            doc_id = str(doc.get("id", ""))
+            doc_id = _norm_key(doc.get("id", ""))
             type_map = mapping_by_type.get(doc_id, {})
             if not type_map:
                 continue
@@ -579,6 +593,8 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
             for ex in ex_list:
                 ref_type = ""
                 ref = ex.get("reference", {})
+                ref_type = _norm_ref_type(ref.get("reference_type", ""))
+                seq = type_map.get(ref_type, [])
                 if isinstance(ref, dict):
                     ref_type = str(ref.get("reference_type", "")).strip()
 
@@ -604,7 +620,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
     mapping = _collect_excel_sentences_by_id(excel_df)
 
     for doc in docs:
-        doc_id = str(doc.get("id", ""))
+        doc_id = _norm_key(doc.get("id", ""))
         seq = mapping.get(doc_id, [])
         if not seq:
             continue

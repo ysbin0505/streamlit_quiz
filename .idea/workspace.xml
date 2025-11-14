@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="Medium_category 값도 각 document.metadata.Medium_category에 반영">
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="원인: 엑셀(=XML)에서 금지된 제어문자가 문자열 안에 섞여있을 수 있음&#10;&#10;xls_safe로 수정">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/photo_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/photo_to_excel.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,6 +36,9 @@
     &quot;accountId&quot;: &quot;de28661c-d8d5-4ebf-8c31-a78fac9ae2f6&quot;
   }
 }</component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file:///Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/typing.py" root0="SKIP_INSPECTION" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
@@ -102,47 +105,12 @@
       <workItem from="1757920219765" duration="4848000" />
       <workItem from="1758089267828" duration="6563000" />
       <workItem from="1758505364269" duration="2225000" />
-      <workItem from="1760319736033" duration="300000" />
-    </task>
-    <task id="LOCAL-00025" summary="main 단순화">
-      <option name="closed" value="true" />
-      <created>1756951556002</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1756951556002</updated>
-    </task>
-    <task id="LOCAL-00026" summary="main 단순화">
-      <option name="closed" value="true" />
-      <created>1756951613165</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1756951613165</updated>
-    </task>
-    <task id="LOCAL-00027" summary="main 단순화">
-      <option name="closed" value="true" />
-      <created>1756951689191</created>
-      <option name="number" value="00027" />
-      <option name="presentableId" value="LOCAL-00027" />
-      <option name="project" value="LOCAL" />
-      <updated>1756951689191</updated>
-    </task>
-    <task id="LOCAL-00028" summary="main 단순화">
-      <option name="closed" value="true" />
-      <created>1756951829989</created>
-      <option name="number" value="00028" />
-      <option name="presentableId" value="LOCAL-00028" />
-      <option name="project" value="LOCAL" />
-      <updated>1756951829989</updated>
-    </task>
-    <task id="LOCAL-00029" summary="main 단순화">
-      <option name="closed" value="true" />
-      <created>1756951962065</created>
-      <option name="number" value="00029" />
-      <option name="presentableId" value="LOCAL-00029" />
-      <option name="project" value="LOCAL" />
-      <updated>1756951962065</updated>
+      <workItem from="1760319736033" duration="924000" />
+      <workItem from="1761268027526" duration="7431000" />
+      <workItem from="1762406680998" duration="1006000" />
+      <workItem from="1762494041490" duration="635000" />
+      <workItem from="1763015299983" duration="1300000" />
+      <workItem from="1763102575168" duration="923000" />
     </task>
     <task id="LOCAL-00030" summary="main 단순화">
       <option name="closed" value="true" />
@@ -496,7 +464,47 @@
       <option name="project" value="LOCAL" />
       <updated>1758506371858</updated>
     </task>
-    <option name="localTasksCounter" value="74" />
+    <task id="LOCAL-00074" summary="URL을 문자열로 강제&#10;&#10;병합셀(top-left 보장)만 건드리도록 확인&#10;&#10;AttributeError 발생 시 구버전 호환용 fallback(Hyperlink) 사용">
+      <option name="closed" value="true" />
+      <created>1760320057761</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1760320057761</updated>
+    </task>
+    <task id="LOCAL-00075" summary="_read_excel_multi&#10;여러 시트 읽어서 하나의 DataFrame으로 합치기&#10;&#10;ZIP 처리 함수의 엑셀 로딩 부분 교체">
+      <option name="closed" value="true" />
+      <created>1761268627202</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1761268627202</updated>
+    </task>
+    <task id="LOCAL-00076" summary="_read_excel_multi&#10;여러 시트 읽어서 하나의 DataFrame으로 합치기&#10;&#10;ZIP 처리 함수의 엑셀 로딩 부분 교체">
+      <option name="closed" value="true" />
+      <created>1761269771464</created>
+      <option name="number" value="00076" />
+      <option name="presentableId" value="LOCAL-00076" />
+      <option name="project" value="LOCAL" />
+      <updated>1761269771465</updated>
+    </task>
+    <task id="LOCAL-00077" summary="_parse_metadata_cell&#10;엑셀 metadata 셀에서 { ... } 블록을 찾아 dict로 파싱&#10;&#10;_collect_note_by_id&#10;엑셀 DF에서 id별로 metadata 셀을 파싱해 note를 수집.">
+      <option name="closed" value="true" />
+      <created>1761273939118</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1761273939118</updated>
+    </task>
+    <task id="LOCAL-00078" summary="원인: 엑셀(=XML)에서 금지된 제어문자가 문자열 안에 섞여있을 수 있음&#10;&#10;xls_safe로 수정">
+      <option name="closed" value="true" />
+      <created>1762406892152</created>
+      <option name="number" value="00078" />
+      <option name="presentableId" value="LOCAL-00078" />
+      <option name="project" value="LOCAL" />
+      <updated>1762406892153</updated>
+    </task>
+    <option name="localTasksCounter" value="79" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -532,7 +540,11 @@
     <MESSAGE value="SRL Label 비어있으면 제거하는거 제거" />
     <MESSAGE value="이제 argument의 form/word_id/morph는 전혀 보지 않습니다." />
     <MESSAGE value="Medium_category 값도 각 document.metadata.Medium_category에 반영" />
-    <option name="LAST_COMMIT_MESSAGE" value="Medium_category 값도 각 document.metadata.Medium_category에 반영" />
+    <MESSAGE value="URL을 문자열로 강제&#10;&#10;병합셀(top-left 보장)만 건드리도록 확인&#10;&#10;AttributeError 발생 시 구버전 호환용 fallback(Hyperlink) 사용" />
+    <MESSAGE value="_read_excel_multi&#10;여러 시트 읽어서 하나의 DataFrame으로 합치기&#10;&#10;ZIP 처리 함수의 엑셀 로딩 부분 교체" />
+    <MESSAGE value="_parse_metadata_cell&#10;엑셀 metadata 셀에서 { ... } 블록을 찾아 dict로 파싱&#10;&#10;_collect_note_by_id&#10;엑셀 DF에서 id별로 metadata 셀을 파싱해 note를 수집." />
+    <MESSAGE value="원인: 엑셀(=XML)에서 금지된 제어문자가 문자열 안에 섞여있을 수 있음&#10;&#10;xls_safe로 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="원인: 엑셀(=XML)에서 금지된 제어문자가 문자열 안에 섞여있을 수 있음&#10;&#10;xls_safe로 수정" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/streamlit_quiz$srl_argument_del.coverage" NAME="srl_argument_del 커버리지 결과" MODIFIED="1758067388147" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/dataly_manager/dataly_tools" />
