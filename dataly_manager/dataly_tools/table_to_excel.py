@@ -21,6 +21,28 @@ from pathlib import Path
 
 import unicodedata as ud
 
+def _norm_colname(s: str) -> str:
+    if s is None:
+        return ""
+    s = ud.normalize("NFC", str(s))
+    s = s.replace("\u200b", "").replace("\ufeff", "")  # 제로폭, BOM
+    s = s.replace("\xa0", " ")  # NBSP → 스페이스
+    base = s.strip()
+    tight = base.replace(" ", "").lower()
+
+    # 표준화 매핑
+    if tight in ("id", "아이디"):
+        return "id"
+    if tight in ("유형", "type", "referencetype", "reference", "참조유형"):
+        return "유형"
+    if tight in ("설명문장", "설명문", "설명", "expsentence", "exp_sentence"):
+        return "설명 문장"
+    # 그 외는 원래(정리된) 이름
+    return base
+
+def _normalize_excel_columns(df: pd.DataFrame) -> pd.DataFrame:
+    return df.rename(columns={c: _norm_colname(c) for c in df.columns})
+
 def _norm_key(s: str) -> str:
     if s is None:
         return ""
@@ -430,60 +452,43 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame) -
 
 def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> pd.DataFrame:
     """
-    Excel 파일에서 시트를 읽어 하나의 DataFrame으로 합친다.
-    - sheet_name == None: 모든 시트
-    - sheet_name == str: 해당 이름의 단일 시트
-    - sheet_name == Iterable[str]: 지정 시트들만 순서대로
-    반환 DF는 시트 순서와 원본 행 순서를 유지하도록 index를 다시 매깁니다.
-    필요 컬럼(id, '설명 문장', 선택: '유형', 'Medium_category')이 없으면 빈 컬럼으로 보정.
+    Excel 파일에서 시트를 읽어 하나의 DataFrame으로 합침.
+    - 모든 시트/지정 시트 지원
+    - 컬럼명을 id / 유형 / 설명 문장으로 정규화
+    - 누락 컬럼은 빈 컬럼으로 보정
     """
-    need_cols = ["id", "설명 문장"]
-    opt_cols  = ["유형", "Medium_category"]
+    need_cols = ["id", "유형", "설명 문장"]  # 유형은 없어도 동작하지만, 여기선 기본 세트로 맞춤
 
-    if sheet_name is None:
-        sheets = pd.read_excel(ef, sheet_name=None)  # OrderedDict[시트명 -> DF]
-        dfs = []
-        for name, df in sheets.items():
-            df = df.copy()
-            for c in need_cols + opt_cols:
-                if c not in df.columns:
-                    df[c] = ""
-            df["__sheet__"] = str(name)
-            dfs.append(df)
-        if not dfs:
-            return pd.DataFrame(columns=need_cols + opt_cols)
-        out = pd.concat(dfs, ignore_index=True)
-        return out
-
-    # 단일 시트명 (str)
-    if isinstance(sheet_name, str):
-        df = pd.read_excel(ef, sheet_name=sheet_name)
-        df = df.copy()
-        for c in need_cols + opt_cols:
+    def _prep(df: pd.DataFrame, name: str) -> pd.DataFrame:
+        df = _normalize_excel_columns(df.copy())
+        for c in need_cols:
             if c not in df.columns:
                 df[c] = ""
-        df["__sheet__"] = str(sheet_name)
+        df["__sheet__"] = str(name)
         return df
 
-    # 시트명 리스트/이터러블
-    try:
-        names = list(sheet_name)
-    except TypeError:
-        raise TypeError("sheet_name은 None, 문자열, 또는 문자열 리스트여야 합니다.")
-    dfs = []
+    if sheet_name is None:
+        sheets = pd.read_excel(ef, sheet_name=None)
+        dfs = []
+        for name, df in sheets.items():
+            dfs.append(_prep(df, name))
+        if not dfs:
+            return pd.DataFrame(columns=need_cols + ["__sheet__"])
+        return pd.concat(dfs, ignore_index=True)
+
+    if isinstance(sheet_name, str):
+        df = pd.read_excel(ef, sheet_name=sheet_name)
+        return _prep(df, sheet_name)
+
+    # 시트명 리스트
+    names = list(sheet_name)
     all_sheets = pd.read_excel(ef, sheet_name=None)
+    dfs = []
     for nm in names:
-        if nm not in all_sheets:
-            # 없는 시트는 건너뜀(필요 시 에러로 바꿔도 됨)
-            continue
-        df = all_sheets[nm].copy()
-        for c in need_cols + opt_cols:
-            if c not in df.columns:
-                df[c] = ""
-        df["__sheet__"] = str(nm)
-        dfs.append(df)
+        if nm in all_sheets:
+            dfs.append(_prep(all_sheets[nm], nm))
     if not dfs:
-        return pd.DataFrame(columns=need_cols + opt_cols)
+        return pd.DataFrame(columns=need_cols + ["__sheet__"])
     return pd.concat(dfs, ignore_index=True)
 
 def _pick_zip_members(zf: zipfile.ZipFile):
@@ -517,27 +522,21 @@ def _collect_excel_sentences_by_id_type(df: pd.DataFrame, skip_blank: bool = Fal
         raise ValueError("엑셀에 'id', '유형', '설명 문장' 컬럼이 모두 필요합니다.")
 
     tmp = df.copy()
-
-    # ★ 병합 셀 복원
-    if "id" in tmp.columns:
-        tmp["id"] = tmp["id"].ffill()
-    if "유형" in tmp.columns:
-        tmp["유형"] = tmp["유형"].ffill()
-
-    tmp["id"] = tmp["id"].astype(str)
-    tmp["유형"] = tmp["유형"].astype(str)
+    tmp["id"] = tmp["id"].ffill().astype(str).map(_norm_key)
+    tmp["유형"] = tmp["유형"].ffill().astype(str)
     tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
 
     bucket: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
     for _, row in tmp.iterrows():
-        _id = row["id"].strip()
+        _id = row["id"]
         label = row["유형"].strip()
         sent = row["설명 문장"].strip()
         if skip_blank and not sent:
             continue
-        ref_type = _label_to_ref_type(label)   # ▼ 패치2에서 추가되는 정규화 함수 사용
+        ref_type = _label_to_ref_type(label)
         bucket[_id][ref_type].append(sent)
     return bucket
+
 
 def _label_to_ref_type(label: Any) -> str:
     """
