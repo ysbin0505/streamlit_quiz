@@ -584,10 +584,9 @@ def _label_to_ref_type(label: Any) -> str:
 def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, Any]:
     """
     엑셀의 '설명 문장'을 JSON의 exp_sentence에 반영.
-    - '유형' 컬럼이 있으면 id+유형별 정밀 매핑(권장)
-        · reference_type이 비었거나 매칭 실패 시: 해당 id의 모든 유형 문장 리스트로 폴백하여 순서 배정
-    - 없으면(구버전 엑셀) id 순서대로 일괄 배분(이전 호환)
-    - skip_blank=True면 엑셀의 빈 문자열은 원본을 덮어쓰지 않음
+    - '유형' 컬럼이 있으면 id+유형별 정밀 매핑
+      · reference_type 비었거나 매칭 실패 → 해당 id의 모든 유형 문장을 폴백으로 순서 배정
+    - '유형' 컬럼이 없으면 id 순서대로 일괄 배분
     """
     docs = json_obj.get("document", [])
     if not isinstance(docs, list):
@@ -596,11 +595,11 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
     has_type_col = "유형" in excel_df.columns
 
     if has_type_col:
-        # 유형 정밀 매핑: id → ref_type → [sentences...]
+        # id는 정규화된 키로 생성됨
         mapping_by_type = _collect_excel_sentences_by_id_type(excel_df, skip_blank=skip_blank)
 
         for doc in docs:
-            doc_id = _norm_key(doc.get("id", ""))
+            doc_id = _norm_key(doc.get("id", ""))   # 정규화
             type_map = mapping_by_type.get(doc_id, {})
             if not type_map:
                 continue
@@ -609,10 +608,9 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
             if not isinstance(ex_list, list):
                 continue
 
-            # 유형별 소비 인덱스
+            # 유형별 소비 인덱스 + 폴백 시퀀스(flatten)
+            from collections import defaultdict
             used_by_type: Dict[str, int] = defaultdict(int)
-
-            # 미리 폴백용 전체 시퀀스(flatten, 입력 순서 유지)
             fallback_key = "__fallback__"
             fallback_seq: List[str] = []
             for _k, _v in type_map.items():
@@ -623,7 +621,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
                 ref_type = _norm_ref_type(ref.get("reference_type", ""))  # "" 가능
                 seq = type_map.get(ref_type, [])
 
-                # 타입 매칭 실패 또는 ref_type 비어있으면 폴백 전체 시퀀스 사용
+                # 타입 매칭 실패 또는 공란 → 폴백
                 if not seq:
                     seq = fallback_seq
                     key_for_used = fallback_key
@@ -631,22 +629,20 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
                     key_for_used = ref_type
 
                 if not seq:
-                    continue  # 이 id에 들어갈 문장이 아예 없음
+                    continue
 
                 used = used_by_type.get(key_for_used, 0)
                 for slot in _iter_exp_slots(ex):
                     if used >= len(seq):
                         break
-                    s = seq[used]
-                    # skip_blank=True면 수집 시 이미 빈값 제거됨
-                    _assign_sentence_to_slot(slot, s)
+                    _assign_sentence_to_slot(slot, seq[used])
                     used += 1
                 used_by_type[key_for_used] = used
 
         return json_obj
 
-    # === '유형' 컬럼이 없는 구버전 엑셀 경로: id 순서대로 일괄 배분 ===
-    mapping = _collect_excel_sentences_by_id(excel_df)
+    # === '유형' 컬럼이 없는 경우(구버전) ===
+    mapping = _collect_excel_sentences_by_id(excel_df)  # 이쪽도 _norm_key 사용함
 
     for doc in docs:
         doc_id = _norm_key(doc.get("id", ""))
@@ -673,6 +669,7 @@ def apply_excel_desc_to_json(json_obj: Dict[str, Any], excel_df: pd.DataFrame, s
                 break
 
     return json_obj
+
 
 
 
