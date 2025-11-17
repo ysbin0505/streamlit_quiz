@@ -33,12 +33,6 @@ META_ORDER = [
 ]
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
-# 최상단 유틸 근처에 추가
-def _clean_id(s):
-    if s is None:
-        return ""
-    return str(s).replace("\u00A0", " ").strip()  # NBSP 제거 + trim
-
 def xls_safe(val) -> str:
     """
     openpyxl이 허용하지 않는 XML 제어문자를 제거.
@@ -601,52 +595,38 @@ def _assign_text_to_slot(slot_descriptor, new_text: str):
 
 
 def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, List[Tuple[str, str]]]:
+    """
+    엑셀에서 id별 (유형, 설명 문장) 시퀀스를 원본 행 순서대로 수집.
+    - 병합 셀로 인해 비는 id/유형은 ffill로 채움
+    - skip_blank=True면 빈 '설명 문장'은 건너뜀
+    반환: { id: [(type, sentence), ...], ... }
+    """
     required = {"id", "설명 문장"}
     if not required.issubset(set(df.columns)):
         raise ValueError("엑셀에 'id', '설명 문장' 컬럼이 필요합니다.")
 
     tmp = df.copy()
-
-    def _clean(s):
-        s = "" if s is None else str(s)
-        return s.replace("\u00A0", " ").strip()   # NBSP 제거 + trim
-
-    # 병합/빈칸 보정 + 정규화
-    tmp["id"] = tmp["id"].ffill().map(_clean) if "id" in tmp.columns else ""
+    # 병합 셀 보정
+    if "id" in tmp.columns:
+        tmp["id"] = tmp["id"].ffill()
     if "유형" in tmp.columns:
-        tmp["유형"] = tmp["유형"].ffill().map(_clean)
-    else:
-        tmp["유형"] = ""
-    tmp["설명 문장"] = tmp["설명 문장"].fillna("").map(_clean)
+        tmp["유형"] = tmp["유형"].ffill()
 
-    bucket = defaultdict(list)
+    tmp["id"] = tmp["id"].astype(str)
+    if "유형" not in tmp.columns:
+        tmp["유형"] = ""  # 유형 컬럼이 없어도 동작하게
+    tmp["유형"] = tmp["유형"].fillna("").astype(str)
+    tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
 
+    bucket: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
     for _, row in tmp.iterrows():
-        _id  = row["id"]
-        typ  = row["유형"]
-        sent = row["설명 문장"]
-
-        if not _id:
+        _id = row["id"].strip()
+        typ = row["유형"].strip()
+        sent = row["설명 문장"].strip()
+        if skip_blank and not sent:
             continue
-
-        if skip_blank:
-            # 설명 문장이 비어도 '유형만 교체'는 살립니다
-            if not sent and typ:
-                bucket[_id].append((typ, ""))     # 유형만 교체
-            elif sent:
-                bucket[_id].append((typ, sent))   # 일반 반영
-            # 둘 다 빈 값은 무시
-        else:
-            # 정밀 모드: 삭제/유형교체/본문교체 모두 반영
-            if not typ and not sent:
-                bucket[_id].append(("", ""))      # 슬롯 삭제 의도
-            elif typ and not sent:
-                bucket[_id].append((typ, ""))     # 유형만 교체
-            else:
-                bucket[_id].append((typ, sent))
-
+        bucket[_id].append((typ, sent))
     return bucket
-
 
 
 def apply_excel_desc_to_photo_json(
@@ -676,7 +656,7 @@ def apply_excel_desc_to_photo_json(
         return json_obj
 
     for doc in docs:
-        doc_id = _clean_id(doc.get("id", ""))
+        doc_id = str(doc.get("id", ""))
 
         # 2-1) Medium_category 반영
         if doc_id:
@@ -702,7 +682,28 @@ def apply_excel_desc_to_photo_json(
         # 2-2) 설명 문장/유형 반영 (기존 로직 유지)
         seq = mapping.get(doc_id, [])
         slots = list(_iter_sentence_slots_with_old(doc))
-
+        # --- [추가] exp_sentence가 전혀 없고, 엑셀 시퀀스가 있으면 안전 생성 후 append ---
+        if not slots and seq:
+            ex_list = doc.get("EX")
+            if not isinstance(ex_list, list) or not ex_list:
+                doc["EX"] = [{"exp_sentence": []}]
+                ex_list = doc["EX"]
+            ex0 = ex_list[0]
+            if "exp_sentence" not in ex0 or ex0["exp_sentence"] is None:
+                ex0["exp_sentence"] = []
+            exp = ex0["exp_sentence"]
+            if isinstance(exp, list):
+                for typ, sent in seq:
+                    typ = (typ or "").strip()
+                    sent = (sent or "").strip()
+                    if not (typ or sent):
+                        continue
+                    text = _compose_text_with_type("", sent, typ)  # → "[유형] 본문"
+                    exp.append({typ or "기타": text})
+            # 생성해줬으니 이번 문서는 계속 다음으로
+            _cleanup_exp_sentences(doc)
+            continue
+        # --- [추가 끝] ---
         n = min(len(seq), len(slots))
         delete_slot_indices = []
 
