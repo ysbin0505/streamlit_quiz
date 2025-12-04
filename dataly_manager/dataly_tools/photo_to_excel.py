@@ -713,7 +713,28 @@ def apply_excel_desc_to_photo_json(
         # 2-2) 설명 문장/유형 반영 (기존 로직 그대로)
         seq = mapping.get(doc_id, [])
         slots = list(_iter_sentence_slots_with_old(doc))
-
+        # --- [추가] exp_sentence가 전혀 없고, 엑셀 시퀀스가 있으면 안전 생성 후 append ---
+        if not slots and seq:
+            ex_list = doc.get("EX")
+            if not isinstance(ex_list, list) or not ex_list:
+                doc["EX"] = [{"exp_sentence": []}]
+                ex_list = doc["EX"]
+            ex0 = ex_list[0]
+            if "exp_sentence" not in ex0 or ex0["exp_sentence"] is None:
+                ex0["exp_sentence"] = []
+            exp = ex0["exp_sentence"]
+            if isinstance(exp, list):
+                for typ, sent in seq:
+                    typ = (typ or "").strip()
+                    sent = (sent or "").strip()
+                    if not (typ or sent):
+                        continue
+                    text = _compose_text_with_type("", sent, typ)  # → "[유형] 본문"
+                    exp.append({typ or "기타": text})
+            # 생성해줬으니 이번 문서는 계속 다음으로
+            _cleanup_exp_sentences(doc)
+            continue
+        # --- [추가 끝] ---
         n = min(len(seq), len(slots))
         delete_slot_indices = []
 
