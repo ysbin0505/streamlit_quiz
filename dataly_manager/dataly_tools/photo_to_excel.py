@@ -33,6 +33,31 @@ META_ORDER = [
 ]
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
+
+def _collect_metadata_by_id(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+    """
+    엑셀 DF에서 id별로 metadata 셀을 파싱해 전체 metadata dict를 수집.
+    - id는 ffill
+    - 각 id에 대해 '비어있지 않은 첫 metadata dict'를 채택
+    """
+    if "id" not in df.columns or "metadata" not in df.columns:
+        return {}
+
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].ffill().astype(str)
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        if not _id:
+            continue
+        meta_dict = _parse_metadata_cell(row["metadata"])
+        # 빈 dict는 무시
+        if meta_dict and _id not in out:
+            out[_id] = meta_dict
+    return out
+
+
 def xls_safe(val) -> str:
     """
     openpyxl이 허용하지 않는 XML 제어문자를 제거.
@@ -648,6 +673,7 @@ def apply_excel_desc_to_photo_json(
       * skip_blank=True이면 공백값은 무시
     """
     mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
+    metadata_map = _collect_metadata_by_id(excel_df)
     medium_map = _collect_medium_by_id(excel_df)
     note_map = _collect_note_by_id(excel_df)
 
@@ -658,28 +684,33 @@ def apply_excel_desc_to_photo_json(
     for doc in docs:
         doc_id = str(doc.get("id", ""))
 
-        # 2-1) Medium_category 반영
-        if doc_id:
+        # metadata dict 보장
+        if doc_id and (doc_id in metadata_map or doc_id in medium_map or doc_id in note_map or not skip_blank):
+            if not isinstance(doc.get("metadata"), dict):
+                doc["metadata"] = {}
+            meta_obj = doc["metadata"]
+        else:
+            meta_obj = None
+
+        # 2-1) 엑셀 metadata 전체 반영 (title 포함)
+        if meta_obj is not None:
+            meta_from_excel = metadata_map.get(doc_id)
+            if meta_from_excel:
+                # 기존 metadata 위에 엑셀 값 덮어쓰기
+                # (엑셀에서 수정한 title, note, Medium_category 등이 우선 적용)
+                meta_obj.update(meta_from_excel)
+
+            # Medium_category 반영 (엑셀에서 별도 컬럼으로 관리하는 값)
             mc_val = medium_map.get(doc_id, "")
             if mc_val or not skip_blank:
+                meta_obj["Medium_category"] = mc_val
 
-                # metadata 보장
-                if not isinstance(doc.get("metadata"), dict):
-                    doc["metadata"] = {}
+            # note 반영
+            note_val = note_map.get(doc_id, "")
+            if note_val or not skip_blank:
+                meta_obj["note"] = note_val
 
-                # Medium_category 반영
-                if doc_id:
-                    mc_val = medium_map.get(doc_id, "")
-                    if mc_val or not skip_blank:
-                        doc["metadata"]["Medium_category"] = mc_val
-
-                # note 반영
-                if doc_id:
-                    note_val = note_map.get(doc_id, "")
-                    if note_val or not skip_blank:
-                        doc["metadata"]["note"] = note_val
-
-        # 2-2) 설명 문장/유형 반영 (기존 로직 유지)
+        # 2-2) 설명 문장/유형 반영 (기존 로직 그대로)
         seq = mapping.get(doc_id, [])
         slots = list(_iter_sentence_slots_with_old(doc))
 
@@ -708,6 +739,7 @@ def apply_excel_desc_to_photo_json(
         _cleanup_exp_sentences(doc)
 
     return json_obj
+
 
 def _collect_medium_by_id(df: pd.DataFrame) -> Dict[str, str]:
     """
