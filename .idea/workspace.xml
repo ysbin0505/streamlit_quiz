@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="원인: 엑셀(=XML)에서 금지된 제어문자가 문자열 안에 섞여있을 수 있음&#10;&#10;xls_safe로 수정">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataly_manager/dataly_tools/table_to_excel.py" afterDir="false" />
-    </list>
+    <list default="true" id="b4a00517-148b-4abe-a640-e56c51c33589" name="변경" comment="원인: 엑셀(=XML)에서 금지된 제어문자가 문자열 안에 섞여있을 수 있음&#10;&#10;xls_safe로 수정" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
