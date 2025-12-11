@@ -33,6 +33,31 @@ META_ORDER = [
 ]
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
+
+def _collect_metadata_by_id(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+    """
+    엑셀 DF에서 id별로 metadata 셀을 파싱해 전체 metadata dict를 수집.
+    - id는 ffill
+    - 각 id에 대해 '비어있지 않은 첫 metadata dict'를 채택
+    """
+    if "id" not in df.columns or "metadata" not in df.columns:
+        return {}
+
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].ffill().astype(str)
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        if not _id:
+            continue
+        meta_dict = _parse_metadata_cell(row["metadata"])
+        # 빈 dict는 무시
+        if meta_dict and _id not in out:
+            out[_id] = meta_dict
+    return out
+
+
 def xls_safe(val) -> str:
     """
     openpyxl이 허용하지 않는 XML 제어문자를 제거.
@@ -380,7 +405,6 @@ def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
         return _write_excel_to_bytes([])
     return _write_excel_to_bytes(rows)
 
-
 def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> pd.DataFrame:
     """
     Excel 파일에서 시트를 읽어 하나의 DataFrame으로 합친다.
@@ -599,8 +623,7 @@ def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dic
     """
     엑셀에서 id별 (유형, 설명 문장) 시퀀스를 원본 행 순서대로 수집.
     - 병합 셀로 인해 비는 id/유형은 ffill로 채움
-    - '설명 문장'이 비어 있어도 한 슬롯으로 인식한 뒤,
-      apply 단계에서 '설명 문장이 비어 있으면 삭제' 규칙을 적용한다.
+    - skip_blank=True면 빈 '설명 문장'은 건너뜀
     반환: { id: [(type, sentence), ...], ... }
     """
     required = {"id", "설명 문장"}
@@ -623,12 +646,10 @@ def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dic
     bucket: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
     for _, row in tmp.iterrows():
         _id = row["id"].strip()
-        if not _id:
-            continue
         typ = row["유형"].strip()
         sent = row["설명 문장"].strip()
-        # 설명 문장이 비어 있어도 일단 매핑에 넣고,
-        # 나중 apply 단계에서 '설명 문장 비어 있으면 삭제' 로 처리
+        if skip_blank and not sent:
+            continue
         bucket[_id].append((typ, sent))
     return bucket
 
@@ -641,17 +662,18 @@ def apply_excel_desc_to_photo_json(
     """
     사진 JSON에 엑셀의 '설명 문장'과 'Medium_category'를 반영.
     - 같은 id 내에서 '엑셀 행 순서'와 '기존 JSON 슬롯 순서'를 1:1로 맞춰 반영
-    - 규칙 (설명 문장 중심):
-      1) 엑셀 '설명 문장'이 빈값("")이면 해당 슬롯을 '삭제'
-      2) 설명 문장이 있고 유형이 빈값이면 '본문만 교체, 기존 유형 유지'
-      3) 설명 문장과 유형 모두 있으면 '유형+본문 모두 교체'
+    - 규칙:
+      1) 유형·문장 모두 빈값("")이면 해당 슬롯을 '삭제'
+      2) 유형만 있고 문장 빈값이면 '유형만 교체, 본문 유지'
+      3) 문장만 있고 유형 빈값이면 '본문만 교체, 기존 유형 유지'
       4) 엑셀 행 수 < JSON 슬롯 수면, 남은 슬롯은 뒤에서부터 삭제하여
          최종 슬롯 개수를 엑셀과 '정확히 동일'하게 맞춤
-    - Medium_category / note 반영:
-      * id별로 엑셀에서 수집한 Medium_category, note가 존재하면 document.metadata에 기록
+    - Medium_category 반영:
+      * id별로 엑셀에서 수집한 Medium_category가 존재하면 document.metadata.Medium_category에 기록
       * skip_blank=True이면 공백값은 무시
     """
     mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
+    metadata_map = _collect_metadata_by_id(excel_df)
     medium_map = _collect_medium_by_id(excel_df)
     note_map = _collect_note_by_id(excel_df)
 
@@ -662,32 +684,36 @@ def apply_excel_desc_to_photo_json(
     for doc in docs:
         doc_id = str(doc.get("id", ""))
 
-        # 2-1) Medium_category / note 반영
-        if doc_id:
+        # metadata dict 보장
+        if doc_id and (doc_id in metadata_map or doc_id in medium_map or doc_id in note_map or not skip_blank):
+            if not isinstance(doc.get("metadata"), dict):
+                doc["metadata"] = {}
+            meta_obj = doc["metadata"]
+        else:
+            meta_obj = None
+
+        # 2-1) 엑셀 metadata 전체 반영 (title 포함)
+        if meta_obj is not None:
+            meta_from_excel = metadata_map.get(doc_id)
+            if meta_from_excel:
+                # 기존 metadata 위에 엑셀 값 덮어쓰기
+                # (엑셀에서 수정한 title, note, Medium_category 등이 우선 적용)
+                meta_obj.update(meta_from_excel)
+
+            # Medium_category 반영 (엑셀에서 별도 컬럼으로 관리하는 값)
             mc_val = medium_map.get(doc_id, "")
             if mc_val or not skip_blank:
+                meta_obj["Medium_category"] = mc_val
 
-                # metadata 보장
-                if not isinstance(doc.get("metadata"), dict):
-                    doc["metadata"] = {}
+            # note 반영
+            note_val = note_map.get(doc_id, "")
+            if note_val or not skip_blank:
+                meta_obj["note"] = note_val
 
-                # Medium_category 반영
-                if doc_id:
-                    mc_val = medium_map.get(doc_id, "")
-                    if mc_val or not skip_blank:
-                        doc["metadata"]["Medium_category"] = mc_val
-
-                # note 반영
-                if doc_id:
-                    note_val = note_map.get(doc_id, "")
-                    if note_val or not skip_blank:
-                        doc["metadata"]["note"] = note_val
-
-        # 2-2) 설명 문장/유형 반영
+        # 2-2) 설명 문장/유형 반영 (기존 로직 그대로)
         seq = mapping.get(doc_id, [])
         slots = list(_iter_sentence_slots_with_old(doc))
-
-        # --- exp_sentence가 전혀 없고, 엑셀 시퀀스가 있으면 안전 생성 후 append ---
+        # --- [추가] exp_sentence가 전혀 없고, 엑셀 시퀀스가 있으면 안전 생성 후 append ---
         if not slots and seq:
             ex_list = doc.get("EX")
             if not isinstance(ex_list, list) or not ex_list:
@@ -701,16 +727,14 @@ def apply_excel_desc_to_photo_json(
                 for typ, sent in seq:
                     typ = (typ or "").strip()
                     sent = (sent or "").strip()
-                    # 설명 문장이 비어 있으면 생성하지 않음 (즉, 삭제와 동일한 효과)
-                    if not sent:
+                    if not (typ or sent):
                         continue
-                    text = _compose_text_with_type("", sent, typ)  # → "[유형] 본문" or "본문"
+                    text = _compose_text_with_type("", sent, typ)  # → "[유형] 본문"
                     exp.append({typ or "기타": text})
             # 생성해줬으니 이번 문서는 계속 다음으로
             _cleanup_exp_sentences(doc)
             continue
-        # --- 추가 끝 ---
-
+        # --- [추가 끝] ---
         n = min(len(seq), len(slots))
         delete_slot_indices = []
 
@@ -720,17 +744,13 @@ def apply_excel_desc_to_photo_json(
             typ_clean = (typ or "").strip()
             sent_clean = (new_sent or "").strip()
 
-            # 설명 문장이 비어 있으면 해당 슬롯은 무조건 삭제
-            if sent_clean == "":
+            if typ_clean == "" and sent_clean == "":
                 delete_slot_indices.append(i)
                 continue
 
-            # 이 시점에서는 sent_clean != "" 이므로
-            # 타입이 비어 있으면 기존 타입 유지, 타입이 있으면 교체
             composed = _compose_text_with_type(old_text, sent_clean, typ_clean)
             _assign_text_to_slot(slot_desc, composed)
 
-        # 엑셀보다 JSON 슬롯이 더 많으면 남는 슬롯은 삭제
         if len(slots) > len(seq):
             delete_slot_indices.extend(range(n, len(slots)))
 
@@ -767,7 +787,6 @@ def _collect_medium_by_id(df: pd.DataFrame) -> Dict[str, str]:
             out[_id] = mc
     return out
 
-
 def apply_excel_desc_to_json_from_zip(
     zip_bytes: bytes,
     sheet_name: Optional[str] = None,
@@ -776,12 +795,6 @@ def apply_excel_desc_to_json_from_zip(
     """
     (사진 전용) ZIP(엑셀+단일 JSON)을 받아 엑셀의 '설명 문장'을 JSON에 반영.
     반환: (updated_json_bytes, suggested_filename)
-
-    - skip_blank:
-        * True  : Medium_category / note 에서 공백값은 무시
-        * False : 공백값도 그대로 반영
-      (설명 문장 삭제/유지 로직은 _collect_excel_pairs_by_id + apply_excel_desc_to_photo_json 안에서
-       '설명 문장 비어 있으면 삭제' 규칙으로 항상 동일하게 동작)
     """
     if not isinstance(zip_bytes, (bytes, bytearray)):
         raise TypeError("zip_bytes는 bytes/bytearray여야 합니다.")
