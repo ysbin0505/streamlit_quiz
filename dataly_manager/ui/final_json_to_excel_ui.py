@@ -1,12 +1,12 @@
 # ui/final_json_to_excel_ui.py
 import streamlit as st
 import json, importlib
-from dataly_manager.dataly_tools import photo_to_excel as p2e
+from dataly_manager.dataly_tools import final_json_to_excel as f2e
 
 
 def render_final_json_to_excel():
     st.header("✅ 최종 JSON → Excel")
-    st.info("최종 JSON 1개를 업로드하면 (사진 변환과 동일 로직으로) 엑셀로 변환합니다.")
+    st.info("최종 JSON 1개를 업로드하면 엑셀로 변환합니다.")
 
     uploaded_json = st.file_uploader(
         "JSON 업로드",
@@ -25,8 +25,8 @@ def render_final_json_to_excel():
                 st.error(f"JSON 파싱 실패: {e}")
             else:
                 with st.spinner("엑셀 생성 중..."):
-                    importlib.reload(p2e)  # 최신 코드 보장
-                    xlsx_bytes = p2e.photo_json_to_xlsx_bytes(data)
+                    importlib.reload(f2e)
+                    xlsx_bytes = f2e.photo_json_to_xlsx_bytes(data)  # 함수명은 그대로 사용
 
                 st.success("엑셀 생성 완료!")
                 st.download_button(
@@ -57,10 +57,10 @@ def render_final_json_to_excel():
             st.error("ZIP 파일을 업로드하세요.")
         else:
             try:
-                importlib.reload(p2e)  # 최신 코드 보장
+                importlib.reload(f2e)
                 zip_bytes = apply_zip.getvalue()
                 sheet_arg = sheet_name.strip() or None
-                updated_bytes, suggested_name = p2e.apply_excel_desc_to_json_from_zip(zip_bytes, sheet_arg)
+                updated_bytes, suggested_name = f2e.apply_excel_desc_to_json_from_zip(zip_bytes, sheet_arg)
             except Exception as e:
                 st.error(f"적용 중 오류: {e}")
             else:
