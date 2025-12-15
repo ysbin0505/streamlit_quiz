@@ -9,6 +9,15 @@
 추가:
 - apply_excel_desc_to_json_from_zip(zip_bytes, sheet_name=None, skip_blank=True)
   : ZIP(엑셀+단일 JSON)을 받아 엑셀의 '설명 문장'을 JSON에 반영해 반환
+
+✅ 2025-12: exp_sentence 신형 구조 지원
+- 신형:
+  "exp_sentence": {
+    "설명 문장1": {"feature": "[대상 식별 문장]", "sent": "...."},
+    "설명 문장2": {"feature": "...", "sent": "..."}
+  }
+- 구형(기존):
+  EX[].exp_sentence 내부에 "[Type] sentence" 혹은 "sentence" 문자열들
 """
 
 import json
@@ -17,7 +26,7 @@ import re
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple, Optional
+from typing import Any, Dict, Iterable, List, Tuple, Optional, Union
 from collections import defaultdict
 
 import pandas as pd
@@ -33,6 +42,62 @@ META_ORDER = [
 ]
 
 _ILLEGAL_XML_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
+
+THIN_BORDER = Border(
+    left=Side(style="thin"), right=Side(style="thin"),
+    top=Side(style="thin"), bottom=Side(style="thin"),
+)
+HEADER_FILL = PatternFill(start_color="EEECE1", end_color="EEECE1", fill_type="solid")
+LINK_BLUE = "0563C1"
+
+# [타입] 문장 형태 파싱용 ([Type] 내용)
+TYPE_BRACKET_RE = re.compile(r"^\s*\[(.+?)\]\s*(.*)$")
+
+META_NOTE_RE = re.compile(r'"note"\s*:\s*"(?P<note>.*?)"', re.DOTALL)
+
+
+def xls_safe(val) -> str:
+    """
+    openpyxl이 허용하지 않는 XML 제어문자를 제거.
+    숫자/None도 문자열로 안전 변환.
+    """
+    if val is None:
+        return ""
+    s = str(val)
+    s = s.replace("\x00", "")
+    s = _ILLEGAL_XML_RE.sub("", s)
+    return s
+
+
+def _parse_metadata_cell(cell_text: Any) -> Dict[str, Any]:
+    """
+    'metadata : { ... }' 형태의 멀티라인 문자열에서 { ... } 만 추출하여 json.loads 시도.
+    엑셀에서 따옴표가 이중("...")으로 들어간 경우도 복원.
+    실패 시 최소한 "note"만 정규식으로 추출.
+    """
+    if cell_text is None:
+        return {}
+    s = str(cell_text).strip()
+    if not s:
+        return {}
+
+    i, j = s.find("{"), s.rfind("}")
+    if i == -1 or j == -1 or i >= j:
+        s_fix = s.replace('""', '"')
+        m = META_NOTE_RE.search(s_fix)
+        return {"note": m.group("note")} if m else {}
+
+    blob = s[i:j + 1].strip()
+    for candidate in (blob, blob.replace('""', '"')):
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
+
+    s_fix = blob.replace('""', '"')
+    m = META_NOTE_RE.search(s_fix)
+    return {"note": m.group("note")} if m else {}
+
 
 def _collect_metadata_by_id(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
     """
@@ -52,57 +117,10 @@ def _collect_metadata_by_id(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
         if not _id:
             continue
         meta_dict = _parse_metadata_cell(row["metadata"])
-        # 빈 dict는 무시
         if meta_dict and _id not in out:
             out[_id] = meta_dict
     return out
 
-
-def xls_safe(val) -> str:
-    """
-    openpyxl이 허용하지 않는 XML 제어문자를 제거.
-    숫자/None도 문자열로 안전 변환.
-    """
-    if val is None:
-        return ""
-    s = str(val)
-    # 흔한 보정: 고아 따옴표/널문자 등
-    s = s.replace("\x00", "")  # 널은 빈문자로
-    s = _ILLEGAL_XML_RE.sub("", s)
-    return s
-
-META_NOTE_RE = re.compile(r'"note"\s*:\s*"(?P<note>.*?)"', re.DOTALL)
-
-# 엑셀 metadata 셀에서 { ... } 블록을 찾아 dict로 파싱
-def _parse_metadata_cell(cell_text: Any) -> Dict[str, Any]:
-    """
-    'metadata : { ... }' 형태의 멀티라인 문자열에서 { ... } 만 추출하여 json.loads 시도.
-    엑셀에서 따옴표가 이중("...")으로 들어간 경우도 복원.
-    실패 시 최소한 "note"만 정규식으로 추출.
-    """
-    if cell_text is None:
-        return {}
-    s = str(cell_text).strip()
-    if not s:
-        return {}
-
-    i, j = s.find("{"), s.rfind("}")
-    if i == -1 or j == -1 or i >= j:
-        s_fix = s.replace('""', '"')
-        m = META_NOTE_RE.search(s_fix)
-        return {"note": m.group("note")} if m else {}
-
-    blob = s[i:j+1].strip()
-    # json 파싱 시도 (따옴표 이중화 보정 포함)
-    for candidate in (blob, blob.replace('""', '"')):
-        try:
-            return json.loads(candidate)
-        except Exception:
-            pass
-
-    s_fix = blob.replace('""', '"')
-    m = META_NOTE_RE.search(s_fix)
-    return {"note": m.group("note")} if m else {}
 
 def _collect_note_by_id(df: pd.DataFrame) -> Dict[str, str]:
     """
@@ -127,15 +145,49 @@ def _collect_note_by_id(df: pd.DataFrame) -> Dict[str, str]:
             out[_id] = note
     return out
 
-THIN_BORDER = Border(
-    left=Side(style="thin"), right=Side(style="thin"),
-    top=Side(style="thin"), bottom=Side(style="thin"),
-)
-HEADER_FILL = PatternFill(start_color="EEECE1", end_color="EEECE1", fill_type="solid")
-LINK_BLUE = "0563C1"
 
-# [타입] 문장 형태 파싱용 ([Type] 내용)
-TYPE_BRACKET_RE = re.compile(r"^\s*\[(.+?)\]\s*(.*)$")
+def _collect_medium_by_id(df: pd.DataFrame) -> Dict[str, str]:
+    """
+    엑셀에서 id별 Medium_category 값을 수집.
+    - 병합 셀 보정을 위해 id, Medium_category ffill
+    - 각 id에 대해 '비어있지 않은 첫 값'을 채택
+    """
+    if "id" not in df.columns:
+        return {}
+
+    tmp = df.copy()
+    tmp["id"] = tmp["id"].ffill().astype(str)
+
+    if "Medium_category" not in tmp.columns:
+        return {}
+
+    tmp["Medium_category"] = tmp["Medium_category"].ffill().fillna("").astype(str)
+
+    out: Dict[str, str] = {}
+    for _, row in tmp.iterrows():
+        _id = row["id"].strip()
+        mc = row["Medium_category"].strip()
+        if _id and mc and _id not in out:
+            out[_id] = mc
+    return out
+
+
+def _strip_brackets(s: str) -> str:
+    if not s:
+        return ""
+    s = str(s).strip()
+    if s.startswith("[") and s.endswith("]"):
+        return s[1:-1].strip()
+    return s
+
+
+def _sort_label_keys(keys):
+    # "설명 문장1", "설명 문장2" ... 같은 키를 숫자 기준 정렬
+    def key_fn(k):
+        k = str(k)
+        m = re.search(r"(\d+)", k)
+        return (0, int(m.group(1))) if m else (1, k)
+    return sorted(list(keys), key=key_fn)
 
 
 # =========================
@@ -143,15 +195,57 @@ TYPE_BRACKET_RE = re.compile(r"^\s*\[(.+?)\]\s*(.*)$")
 # =========================
 def extract_sentences(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
     """
-    EX.exp_sentence 내부를 탐색해 ([Type] sentence) 또는 그냥 sentence를
-    (type, sentence) 튜플 리스트로 반환
+    EX.exp_sentence 내부를 탐색해 (type, sentence) 튜플 리스트로 반환
+
+    지원 형식:
+    A) 구형: "[Type] sentence" 또는 "sentence"
+    B) 신형:
+       "exp_sentence": {
+         "설명 문장1": {"feature": "[대상 식별 문장]", "sent": "..."},
+         ...
+       }
     """
     out: List[Tuple[str, str]] = []
+
     for ex in doc.get("EX", []):
-        for item in ex.get("exp_sentence", []) or []:
-            if not isinstance(item, dict):
+        exp = ex.get("exp_sentence")
+        if exp is None:
+            continue
+
+        # ===== 신형(dict: label -> {feature, sent}) =====
+        if isinstance(exp, dict):
+            is_new = any(isinstance(v, dict) and ("sent" in v or "feature" in v) for v in exp.values())
+            if is_new:
+                for label in _sort_label_keys(exp.keys()):
+                    v = exp.get(label, {})
+                    if not isinstance(v, dict):
+                        continue
+                    typ = _strip_brackets(v.get("feature", "") or "")
+                    sent = str(v.get("sent", "") or "").strip()
+                    if sent:
+                        out.append((typ, sent))
                 continue
-            for _k, v in item.items():
+
+        # ===== 구형(list[dict{...}] / dict / str) =====
+        if isinstance(exp, list):
+            for item in exp:
+                if not isinstance(item, dict):
+                    continue
+                for _k, v in item.items():
+                    seq = v if isinstance(v, list) else [v]
+                    for s in seq:
+                        if not s:
+                            continue
+                        text = str(s).strip()
+                        m = TYPE_BRACKET_RE.match(text)
+                        if m:
+                            out.append((m.group(1).strip(), m.group(2).strip()))
+                        else:
+                            out.append(("", text))
+            continue
+
+        if isinstance(exp, dict):
+            for k, v in exp.items():
                 seq = v if isinstance(v, list) else [v]
                 for s in seq:
                     if not s:
@@ -162,6 +256,17 @@ def extract_sentences(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
                         out.append((m.group(1).strip(), m.group(2).strip()))
                     else:
                         out.append(("", text))
+            continue
+
+        if isinstance(exp, str):
+            text = exp.strip()
+            if text:
+                m = TYPE_BRACKET_RE.match(text)
+                if m:
+                    out.append((m.group(1).strip(), m.group(2).strip()))
+                else:
+                    out.append(("", text))
+
     return out
 
 
@@ -308,7 +413,7 @@ def _write_excel_to_bytes(all_rows: List[Dict[str, Any]]) -> bytes:
             )
             ws.cell(row=current_row, column=c).border = THIN_BORDER
 
-        key = (row.get("id",""),)
+        key = (row.get("id", ""),)
         if key not in start_row_by_group:
             start_row_by_group[key] = current_row
             count_by_group[key] = 0
@@ -346,23 +451,16 @@ def _write_excel_to_bytes(all_rows: List[Dict[str, Any]]) -> bytes:
 
         c = ws.cell(row=start, column=6)
 
-        # 병합셀인 경우 top-left 좌표가 맞는지 확인
         if isinstance(c, MergedCell):
-            # 보통 start,6은 top-left라 정상 Cell이어야 하지만
-            # 드물게 MergedCell로 잡히면 한 번 해제/재설정이 필요할 수 있음.
-            # 여기서는 하이퍼링크를 워크시트 레벨에 직접 추가하는 fallback 사용
             if Hyperlink is not None:
                 ws._hyperlinks.append(Hyperlink(ref=c.coordinate, target=url, display=url))
         else:
             try:
-                # 신버전 권장 경로: 문자열 직접 대입
                 c.hyperlink = url
             except AttributeError:
-                # 구버전/특수환경: Hyperlink 객체 직접 추가
                 if Hyperlink is not None:
                     ws._hyperlinks.append(Hyperlink(ref=c.coordinate, target=url, display=url))
 
-        # 스타일 (밑줄 끄기: 일부 버전은 None 대신 "none"이 안전)
         c.font = Font(color=LINK_BLUE, underline="none")
         c.alignment = Alignment(vertical="top", wrap_text=True)
         c.border = THIN_BORDER
@@ -385,10 +483,8 @@ def _write_excel_to_bytes(all_rows: List[Dict[str, Any]]) -> bytes:
             need = desc_lines
         ws.row_dimensions[r].height = max(1, need) * LINE_HEIGHT_PT
 
-    # 틀 고정
     ws.freeze_panes = "A2"
 
-    # 메모리로 저장
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
@@ -401,11 +497,11 @@ def photo_json_to_xlsx_bytes(data: Dict[str, Any]) -> bytes:
     """
     rows = to_rows(data)
     if not rows:
-        # 빈 통합문서라도 반환(다운로드 버튼 활성 목적)
         return _write_excel_to_bytes([])
     return _write_excel_to_bytes(rows)
 
-def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> pd.DataFrame:
+
+def _read_excel_multi(ef, sheet_name: Optional[Union[Iterable[str], str]] = None) -> pd.DataFrame:
     """
     Excel 파일에서 시트를 읽어 하나의 DataFrame으로 합친다.
     - sheet_name == None: 모든 시트
@@ -415,10 +511,10 @@ def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> 
     필요 컬럼(id, '설명 문장', 선택: '유형', 'Medium_category')이 없으면 빈 컬럼으로 보정.
     """
     need_cols = ["id", "설명 문장"]
-    opt_cols  = ["유형", "Medium_category"]
+    opt_cols = ["유형", "Medium_category"]
 
     if sheet_name is None:
-        sheets = pd.read_excel(ef, sheet_name=None)  # OrderedDict[시트명 -> DF]
+        sheets = pd.read_excel(ef, sheet_name=None)
         dfs = []
         for name, df in sheets.items():
             df = df.copy()
@@ -429,10 +525,8 @@ def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> 
             dfs.append(df)
         if not dfs:
             return pd.DataFrame(columns=need_cols + opt_cols)
-        out = pd.concat(dfs, ignore_index=True)
-        return out
+        return pd.concat(dfs, ignore_index=True)
 
-    # 단일 시트명 (str)
     if isinstance(sheet_name, str):
         df = pd.read_excel(ef, sheet_name=sheet_name)
         df = df.copy()
@@ -442,16 +536,15 @@ def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> 
         df["__sheet__"] = str(sheet_name)
         return df
 
-    # 시트명 리스트/이터러블
     try:
         names = list(sheet_name)
     except TypeError:
         raise TypeError("sheet_name은 None, 문자열, 또는 문자열 리스트여야 합니다.")
-    dfs = []
+
     all_sheets = pd.read_excel(ef, sheet_name=None)
+    dfs = []
     for nm in names:
         if nm not in all_sheets:
-            # 없는 시트는 건너뜀(필요 시 에러로 바꿔도 됨)
             continue
         df = all_sheets[nm].copy()
         for c in need_cols + opt_cols:
@@ -459,9 +552,11 @@ def _read_excel_multi(ef, sheet_name: Optional[Iterable[str] or str] = None) -> 
                 df[c] = ""
         df["__sheet__"] = str(nm)
         dfs.append(df)
+
     if not dfs:
         return pd.DataFrame(columns=need_cols + opt_cols)
     return pd.concat(dfs, ignore_index=True)
+
 
 # ==========================================
 # Excel('설명 문장') → JSON (역방향, ZIP 지원)
@@ -471,6 +566,7 @@ def _delete_slot(slot_descriptor):
     """
     ('list', list_obj, idx)  -> list_obj.pop(idx)
     ('dict_scalar', dict_obj, key) -> dict_obj.pop(key, None)
+    ('new_obj', exp_dict, label_key) -> exp_dict.pop(label_key, None)
     """
     mode = slot_descriptor[0]
     if mode == "list":
@@ -481,12 +577,17 @@ def _delete_slot(slot_descriptor):
         obj, key = slot_descriptor[1], slot_descriptor[2]
         if isinstance(obj, dict):
             obj.pop(key, None)
+    elif mode == "new_obj":
+        container, label = slot_descriptor[1], slot_descriptor[2]
+        if isinstance(container, dict):
+            container.pop(label, None)
 
 
 def _cleanup_exp_sentences(doc: Dict[str, Any]) -> None:
     """
     빈 문자열/빈 리스트/빈 딕셔너리를 걷어내서 exp_sentence 구조를 가볍게 정리.
     (키 자체도 제거)
+    ✅ 신형(dict: label -> {feature,sent})도 정리
     """
     ex_list = doc.get("EX", [])
     if not isinstance(ex_list, list):
@@ -497,7 +598,27 @@ def _cleanup_exp_sentences(doc: Dict[str, Any]) -> None:
         if exp is None:
             continue
 
-        # list 형태
+        # 신형: dict(label -> {feature, sent})
+        if isinstance(exp, dict):
+            is_new = any(isinstance(v, dict) and ("sent" in v or "feature" in v) for v in exp.values())
+            if is_new:
+                new_exp = {}
+                for k, v in exp.items():
+                    if not isinstance(v, dict):
+                        continue
+                    feature = str(v.get("feature", "") or "").strip()
+                    sent = str(v.get("sent", "") or "").strip()
+                    # 둘 다 비면 제거
+                    if not feature and not sent:
+                        continue
+                    new_exp[k] = {"feature": feature, "sent": sent}
+                if new_exp:
+                    ex["exp_sentence"] = new_exp
+                else:
+                    ex.pop("exp_sentence", None)
+                continue
+
+        # list 형태 (기존)
         if isinstance(exp, list):
             new_exp = []
             for item in exp:
@@ -514,13 +635,11 @@ def _cleanup_exp_sentences(doc: Dict[str, Any]) -> None:
                                 new_item[k] = s
                     if new_item:
                         new_exp.append(new_item)
-                # dict가 아니면 버림
             ex["exp_sentence"] = new_exp
             if not new_exp:
-                # 완전히 비었으면 키 제거
                 ex.pop("exp_sentence", None)
 
-        # dict 형태
+        # dict 형태 (구형 dict: key -> str/list[str])
         elif isinstance(exp, dict):
             new_exp = {}
             for k, v in exp.items():
@@ -540,27 +659,20 @@ def _cleanup_exp_sentences(doc: Dict[str, Any]) -> None:
 
 def _compose_text_with_type(old_text: str, new_sentence: str, excel_type: str) -> str:
     """
-    엑셀 '유형'만 바꿔도 문장은 유지하면서 타입을 교체.
-    - new_sentence가 비어 있어도 excel_type이 있으면 타입만 바꾼다.
-    - excel_type에 대괄호가 이미 있으면 이중 대괄호를 방지한다.
+    (구형 슬롯용) 엑셀 '유형'만 바꿔도 문장은 유지하면서 타입을 교체.
     """
     s_new = "" if new_sentence is None else str(new_sentence).strip()
     t_new = "" if excel_type is None else str(excel_type).strip()
 
-    # [타입] 파싱
     old_text_str = str(old_text or "")
     m = TYPE_BRACKET_RE.match(old_text_str)
     old_type = (m.group(1).strip() if m else "")
     old_body = (m.group(2).strip() if m else old_text_str.strip())
 
-    # 엑셀 유형에 대괄호가 들어온 경우 이중 괄호 방지
     if t_new.startswith("[") and t_new.endswith("]"):
         t_new = t_new[1:-1].strip()
 
-    # 본문은 새 문장 있으면 교체, 없으면 기존 유지
     body = s_new if s_new else old_body
-
-    # 타입 우선순위: 엑셀 유형 > 기존 유형 > 없음
     final_type = t_new if t_new else old_type
 
     return f"[{final_type}] {body}".strip() if final_type else body
@@ -570,8 +682,10 @@ def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
     """
     사진 JSON의 EX[*].exp_sentence에서 실제 '문장 슬롯'을 순서대로 찾아
     (slot_descriptor, old_text) 를 yield.
-    slot_descriptor는 ('list', list_obj, idx) 또는 ('dict_scalar', dict_obj, key)
-    같은 형태로, _assign_text_to_slot에서 사용.
+
+    ✅ 신형 슬롯:
+      slot_descriptor = ("new_obj", exp_dict, label_key)
+      old_text = (old_feature, old_sent)  # tuple
     """
     ex_list = doc.get("EX", [])
     if not isinstance(ex_list, list):
@@ -582,7 +696,20 @@ def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
         if exp is None:
             continue
 
-        # 최빈 구조: list[ dict{key: list[str] or str}, ... ]
+        # ✅ 신형: dict(label -> {feature, sent})
+        if isinstance(exp, dict):
+            is_new = any(isinstance(v, dict) and ("sent" in v or "feature" in v) for v in exp.values())
+            if is_new:
+                for label in _sort_label_keys(exp.keys()):
+                    obj = exp.get(label, {})
+                    if not isinstance(obj, dict):
+                        continue
+                    old_feature = "" if obj.get("feature") is None else str(obj.get("feature"))
+                    old_sent = "" if obj.get("sent") is None else str(obj.get("sent"))
+                    yield (("new_obj", exp, label), (old_feature, old_sent))
+                continue
+
+        # 구형: list[ dict{key: list[str] or str}, ... ]
         if isinstance(exp, list):
             for item in exp:
                 if isinstance(item, dict):
@@ -592,10 +719,9 @@ def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
                                 yield (("list", v, i), ("" if s is None else str(s)))
                         else:
                             yield (("dict_scalar", item, k), ("" if v is None else str(v)))
-                else:
-                    # list 안에 문자열이 직접 들어오는 경우도 방어적 무시(드묾)
-                    continue
+            continue
 
+        # 구형: dict(key -> list[str]/str)
         elif isinstance(exp, dict):
             for k, v in exp.items():
                 if isinstance(v, list):
@@ -605,7 +731,6 @@ def _iter_sentence_slots_with_old(doc: Dict[str, Any]):
                     yield (("dict_scalar", exp, k), ("" if v is None else str(v)))
 
         elif isinstance(exp, str):
-            # 문자열 하나 전체가 슬롯인 경우
             yield (("dict_scalar", ex, "exp_sentence"), exp)
 
 
@@ -617,6 +742,7 @@ def _assign_text_to_slot(slot_descriptor, new_text: str):
     elif mode == "dict_scalar":
         obj, key = slot_descriptor[1], slot_descriptor[2]
         obj[key] = new_text
+    # "new_obj"는 apply_excel_desc_to_photo_json에서 직접 처리
 
 
 def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dict[str, List[Tuple[str, str]]]:
@@ -631,7 +757,6 @@ def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dic
         raise ValueError("엑셀에 'id', '설명 문장' 컬럼이 필요합니다.")
 
     tmp = df.copy()
-    # 병합 셀 보정
     if "id" in tmp.columns:
         tmp["id"] = tmp["id"].ffill()
     if "유형" in tmp.columns:
@@ -639,7 +764,7 @@ def _collect_excel_pairs_by_id(df: pd.DataFrame, skip_blank: bool = True) -> Dic
 
     tmp["id"] = tmp["id"].astype(str)
     if "유형" not in tmp.columns:
-        tmp["유형"] = ""  # 유형 컬럼이 없어도 동작하게
+        tmp["유형"] = ""
     tmp["유형"] = tmp["유형"].fillna("").astype(str)
     tmp["설명 문장"] = tmp["설명 문장"].fillna("").astype(str)
 
@@ -662,15 +787,11 @@ def apply_excel_desc_to_photo_json(
     """
     사진 JSON에 엑셀의 '설명 문장'과 'Medium_category'를 반영.
     - 같은 id 내에서 '엑셀 행 순서'와 '기존 JSON 슬롯 순서'를 1:1로 맞춰 반영
-    - 규칙:
-      1) 유형·문장 모두 빈값("")이면 해당 슬롯을 '삭제'
-      2) 유형만 있고 문장 빈값이면 '유형만 교체, 본문 유지'
-      3) 문장만 있고 유형 빈값이면 '본문만 교체, 기존 유형 유지'
-      4) 엑셀 행 수 < JSON 슬롯 수면, 남은 슬롯은 뒤에서부터 삭제하여
-         최종 슬롯 개수를 엑셀과 '정확히 동일'하게 맞춤
-    - Medium_category 반영:
-      * id별로 엑셀에서 수집한 Medium_category가 존재하면 document.metadata.Medium_category에 기록
-      * skip_blank=True이면 공백값은 무시
+
+    ✅ 신형 exp_sentence도 지원:
+      exp_sentence[label] = {"feature": "...", "sent": "..."}
+      - feature는 엑셀 '유형'을 "[...]"로 감싸 저장(엑셀에 대괄호가 없어도 자동)
+      - sent는 엑셀 '설명 문장' 그대로 저장
     """
     mapping = _collect_excel_pairs_by_id(excel_df, skip_blank=skip_blank)
     metadata_map = _collect_metadata_by_id(excel_df)
@@ -692,65 +813,108 @@ def apply_excel_desc_to_photo_json(
         else:
             meta_obj = None
 
-        # 2-1) 엑셀 metadata 전체 반영 (title 포함)
+        # 2-1) 엑셀 metadata 전체 반영
         if meta_obj is not None:
             meta_from_excel = metadata_map.get(doc_id)
             if meta_from_excel:
-                # 기존 metadata 위에 엑셀 값 덮어쓰기
-                # (엑셀에서 수정한 title, note, Medium_category 등이 우선 적용)
                 meta_obj.update(meta_from_excel)
 
-            # Medium_category 반영 (엑셀에서 별도 컬럼으로 관리하는 값)
             mc_val = medium_map.get(doc_id, "")
             if mc_val or not skip_blank:
                 meta_obj["Medium_category"] = mc_val
 
-            # note 반영
             note_val = note_map.get(doc_id, "")
             if note_val or not skip_blank:
                 meta_obj["note"] = note_val
 
-        # 2-2) 설명 문장/유형 반영 (기존 로직 그대로)
+        # 2-2) 설명 문장/유형 반영
         seq = mapping.get(doc_id, [])
         slots = list(_iter_sentence_slots_with_old(doc))
-        # --- [추가] exp_sentence가 전혀 없고, 엑셀 시퀀스가 있으면 안전 생성 후 append ---
+
+        # exp_sentence가 전혀 없고, 엑셀 시퀀스가 있으면 신형 구조로 생성
         if not slots and seq:
             ex_list = doc.get("EX")
             if not isinstance(ex_list, list) or not ex_list:
-                doc["EX"] = [{"exp_sentence": []}]
+                doc["EX"] = [{"exp_sentence": {}}]
                 ex_list = doc["EX"]
+
             ex0 = ex_list[0]
             if "exp_sentence" not in ex0 or ex0["exp_sentence"] is None:
-                ex0["exp_sentence"] = []
+                ex0["exp_sentence"] = {}
+
+            # 신형 dict로 강제
             exp = ex0["exp_sentence"]
-            if isinstance(exp, list):
-                for typ, sent in seq:
-                    typ = (typ or "").strip()
-                    sent = (sent or "").strip()
-                    if not (typ or sent):
-                        continue
-                    text = _compose_text_with_type("", sent, typ)  # → "[유형] 본문"
-                    exp.append({typ or "기타": text})
-            # 생성해줬으니 이번 문서는 계속 다음으로
+            if not isinstance(exp, dict):
+                exp = {}
+                ex0["exp_sentence"] = exp
+
+            # 설명 문장1..n 생성
+            idx = 1
+            for typ, sent in seq:
+                typ = (typ or "").strip()
+                sent = (sent or "").strip()
+                if not (typ or sent):
+                    continue
+
+                t = typ
+                if t.startswith("[") and t.endswith("]"):
+                    t = t[1:-1].strip()
+                feature_out = f"[{t}]" if t else ""
+
+                exp[f"설명 문장{idx}"] = {"feature": feature_out, "sent": sent}
+                idx += 1
+
             _cleanup_exp_sentences(doc)
             continue
-        # --- [추가 끝] ---
+
         n = min(len(seq), len(slots))
         delete_slot_indices = []
 
         for i in range(n):
-            (slot_desc, old_text) = slots[i]
+            (slot_desc, old_val) = slots[i]
             typ, new_sent = seq[i]
             typ_clean = (typ or "").strip()
             sent_clean = (new_sent or "").strip()
 
+            # ✅ 신형 슬롯 처리
+            if slot_desc[0] == "new_obj":
+                exp_dict, label = slot_desc[1], slot_desc[2]
+                old_feature, old_sent = old_val
+
+                if typ_clean == "" and sent_clean == "":
+                    delete_slot_indices.append(i)
+                    continue
+
+                # feature: 엑셀 유형 있으면 교체, 없으면 기존 유지
+                if typ_clean:
+                    t = typ_clean
+                    if t.startswith("[") and t.endswith("]"):
+                        t = t[1:-1].strip()
+                    feature_out = f"[{t}]" if t else ""
+                else:
+                    feature_out = str(old_feature or "").strip()
+
+                # sent: 엑셀 문장 있으면 교체, 없으면 기존 유지
+                sent_out = sent_clean if sent_clean else str(old_sent or "").strip()
+
+                obj = exp_dict.get(label)
+                if not isinstance(obj, dict):
+                    obj = {}
+                    exp_dict[label] = obj
+                obj["feature"] = feature_out
+                obj["sent"] = sent_out
+                continue
+
+            # ===== 구형 슬롯 처리(문자열) =====
+            (slot_desc2, old_text) = slots[i]
             if typ_clean == "" and sent_clean == "":
                 delete_slot_indices.append(i)
                 continue
 
             composed = _compose_text_with_type(old_text, sent_clean, typ_clean)
-            _assign_text_to_slot(slot_desc, composed)
+            _assign_text_to_slot(slot_desc2, composed)
 
+        # 엑셀 행 수 < JSON 슬롯 수면, 남은 슬롯은 뒤에서부터 삭제해 개수 일치
         if len(slots) > len(seq):
             delete_slot_indices.extend(range(n, len(slots)))
 
@@ -761,31 +925,6 @@ def apply_excel_desc_to_photo_json(
 
     return json_obj
 
-
-def _collect_medium_by_id(df: pd.DataFrame) -> Dict[str, str]:
-    """
-    엑셀에서 id별 Medium_category 값을 수집.
-    - 병합 셀 보정을 위해 id, Medium_category ffill
-    - 각 id에 대해 '비어있지 않은 첫 값'을 채택
-    """
-    if "id" not in df.columns:
-        return {}
-
-    tmp = df.copy()
-    tmp["id"] = tmp["id"].ffill().astype(str)
-
-    if "Medium_category" not in tmp.columns:
-        return {}
-
-    tmp["Medium_category"] = tmp["Medium_category"].ffill().fillna("").astype(str)
-
-    out: Dict[str, str] = {}
-    for _, row in tmp.iterrows():
-        _id = row["id"].strip()
-        mc = row["Medium_category"].strip()
-        if _id and mc and _id not in out:
-            out[_id] = mc
-    return out
 
 def apply_excel_desc_to_json_from_zip(
     zip_bytes: bytes,
@@ -800,10 +939,9 @@ def apply_excel_desc_to_json_from_zip(
         raise TypeError("zip_bytes는 bytes/bytearray여야 합니다.")
 
     with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
-        # 구성 파일 선택
         json_members = [m for m in zf.namelist() if m.lower().endswith(".json")]
         xlsx_members = [m for m in zf.namelist() if m.lower().endswith(".xlsx")]
-        xls_members  = [m for m in zf.namelist() if m.lower().endswith(".xls")]
+        xls_members = [m for m in zf.namelist() if m.lower().endswith(".xls")]
 
         json_member = None
         for m in json_members:
@@ -820,18 +958,14 @@ def apply_excel_desc_to_json_from_zip(
         if not excel_member:
             raise FileNotFoundError("ZIP 안에 Excel 파일(.xlsx/.xls)이 없습니다.")
 
-        # JSON 로드
         with zf.open(json_member) as jf:
             json_obj = json.loads(jf.read().decode("utf-8"))
 
-        # Excel 로드
         with zf.open(excel_member) as ef:
             df = _read_excel_multi(ef, sheet_name=sheet_name)
 
-        # 반영
         updated = apply_excel_desc_to_photo_json(json_obj, df, skip_blank=skip_blank)
 
-        # 파일명 제안
         base = Path(json_member).name
         out_name = (base[:-5] if base.lower().endswith(".json") else base) + "_updated.json"
 
