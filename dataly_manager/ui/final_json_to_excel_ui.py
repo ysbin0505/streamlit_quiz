@@ -5,7 +5,7 @@ from dataly_manager.dataly_tools import final_json_to_excel as f2e
 
 
 def render_final_json_to_excel():
-    st.header("✅ 최종 JSON → Excel")
+    st.header("✅ 최종 사진 JSON → Excel")
     st.info("최종 JSON 1개를 업로드하면 엑셀로 변환합니다.")
 
     uploaded_json = st.file_uploader(
@@ -38,7 +38,7 @@ def render_final_json_to_excel():
                 )
 
     st.divider()
-    st.subheader("🔁 엑셀의 ‘설명 문장’ → JSON 반영 (ZIP)")
+    st.subheader("🔁 사진 엑셀의 ‘설명 문장’ → JSON 반영 (ZIP)")
     st.caption("ZIP 안에 .xlsx 1개와 JSON 1개가 있어야 합니다. 시트명을 비우면 첫 시트를 사용합니다.")
 
     apply_zip = st.file_uploader(
